@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3 uid="uid://13c12vthl2iy"]
+
+[ext_resource type="Script" path="res://FloatingText.gd" id="1_bnesg"]
+
+[node name="Node2D" type="Node2D"]
+script = ExtResource("1_bnesg")
+
+[node name="AnimationTimer" type="Timer" parent="."]
+one_shot = true

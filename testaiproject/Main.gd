@@ -5,12 +5,22 @@ var tower_range = 200
 var bullet_speed = 400
 var bullet_scene = preload("res://Bullet.tscn")
 var enemy_scene = preload("res://Enemy.tscn")
+var resource_node_scene = preload("res://ResourceNode.tscn")
 
 # Spawn variables
 var spawn_timer = 0.0
 var spawn_interval = 5.0  # Spawn every 5 seconds
 var min_spawn_distance = 100  # Minimum distance from player/tower
 var screen_margin = 50  # Keep enemies away from screen edges
+
+# Resource variables
+var resources = 0
+var resource_spawn_timer = 0.0
+var resource_spawn_interval = 10.0  # Spawn resource node every 10 seconds
+var max_resource_nodes = 5  # Maximum number of resource nodes at once
+
+# Floating text variables
+var floating_text_scene = preload("res://FloatingText.tscn")
 
 # Turret cooldown variables
 var last_shot_time = 0.0
@@ -45,6 +55,12 @@ func _process(delta: float) -> void:
 		if spawn_timer >= spawn_interval:
 			spawn_timer = 0
 			spawn_enemy()
+		
+		# Handle resource node spawning
+		resource_spawn_timer += delta
+		if resource_spawn_timer >= resource_spawn_interval:
+			resource_spawn_timer = 0
+			spawn_resource_node()
 	
 	if not player_dead:
 		# Player movement
@@ -107,6 +123,38 @@ func _process(delta: float) -> void:
 
 func get_valid_spawn_position() -> Vector2:
 	var viewport_size = get_viewport_rect().size
+	var position = Vector2.ZERO
+	
+	# Randomly choose which side to spawn from (0: top, 1: right, 2: bottom, 3: left)
+	var side = randi() % 4
+	
+	match side:
+		0:  # Top
+			position = Vector2(
+				randf_range(0, viewport_size.x),
+				-screen_margin
+			)
+		1:  # Right
+			position = Vector2(
+				viewport_size.x + screen_margin,
+				randf_range(0, viewport_size.y)
+			)
+		2:  # Bottom
+			position = Vector2(
+				randf_range(0, viewport_size.x),
+				viewport_size.y + screen_margin
+			)
+		3:  # Left
+			position = Vector2(
+				-screen_margin,
+				randf_range(0, viewport_size.y)
+			)
+	
+	print("Spawning enemy from side: ", side)
+	return position
+
+func get_valid_resource_position() -> Vector2:
+	var viewport_size = get_viewport_rect().size
 	var max_attempts = 10
 	var position = Vector2.ZERO
 	
@@ -126,11 +174,17 @@ func get_valid_spawn_position() -> Vector2:
 			if position.distance_to($Tower.position) < min_spawn_distance:
 				valid_position = false
 		
+		# Check distance from other resource nodes
+		for node in get_tree().get_nodes_in_group("resource_nodes"):
+			if is_instance_valid(node):
+				if position.distance_to(node.position) < min_spawn_distance:
+					valid_position = false
+		
 		if valid_position:
 			return position
 	
-	# If no valid position found, return a default position far from center
-	return Vector2(viewport_size.x - screen_margin, viewport_size.y - screen_margin)
+	# If no valid position found, return a default position
+	return Vector2(viewport_size.x / 2, viewport_size.y / 2)
 
 func spawn_enemy():
 	var new_enemy = enemy_scene.instantiate()
@@ -138,6 +192,35 @@ func spawn_enemy():
 	new_enemy.position = get_valid_spawn_position()
 	new_enemy.add_to_group("enemies")  # Add to enemies group for easy access
 	print("Spawned new enemy at position: ", new_enemy.position)
+	
+	var floating_text = floating_text_scene.instantiate()
+	add_child(floating_text)
+	floating_text.position = $Player.position + Vector2(0, -30) # Position aboveplayer
+	floating_text.set_text("+ enemy")  # Use set_text function
+	floating_text.modulate = Color(1, 0.84, 0)  # Gold color
+
+func spawn_resource_node():
+	# Count current resource nodes
+	var current_nodes = get_tree().get_nodes_in_group("resource_nodes").size()
+	
+	if current_nodes < max_resource_nodes:
+		var new_node = resource_node_scene.instantiate()
+		add_child(new_node)
+		new_node.position = get_valid_resource_position()
+		new_node.add_to_group("resource_nodes")
+		print("Spawned new resource node at position: ", new_node.position)
+
+func add_resources(type: String, amount: int):
+	resources += amount
+	print("Resources: ", resources)
+	
+	# Create floating text
+	if is_instance_valid($Player):
+		var floating_text = floating_text_scene.instantiate()
+		add_child(floating_text)
+		floating_text.position = $Player.position + Vector2(0, -30)# Position aboveplayer
+		floating_text.set_text("+" + str(amount) + " " + type)  # Use set_text function
+		floating_text.modulate = Color(1, 0.84, 0)  # Gold color
 
 func shoot_at_enemy(target_enemy):
 	if not is_instance_valid(target_enemy) or not is_instance_valid($Tower):
