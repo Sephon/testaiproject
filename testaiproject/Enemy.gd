@@ -5,6 +5,7 @@ var collision_radius = 15
 var exploding = false
 var explosion_time = 0.0
 var explosion_duration = 0.3
+var explosion_scene = preload("res://ExplosionEffect.tscn")
 
 # Movement behavior variables
 var current_direction = Vector2.ZERO
@@ -147,4 +148,10 @@ func _on_body_entered(body):
 func start_explosion():
 	print("Enemy start_explosion called")  # Debug print
 	exploding = true
-	explosion_time = 0.0 
+	explosion_time = 0.0
+	
+	# Create the explosion effect
+	var explosion = explosion_scene.instantiate()
+	get_parent().add_child(explosion)
+	explosion.position = position
+	
