@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3 uid="uid://coiypxkeqrkof"]
+[gd_scene load_steps=4 format=3 uid="uid://coiypxkeqrkof"]
 
 [ext_resource type="Script" path="res://Main.gd" id="1_gnnvp"]
+[ext_resource type="AudioStream" uid="uid://cdw1b0og8ff7i" path="res://Music/stranger-things.mp3" id="2_chgkj"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_sblpp"]
 size = Vector2(40, 40)
@@ -19,3 +20,7 @@ color = Color(0, 1, 0, 1)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
 shape = SubResource("RectangleShape2D_sblpp")
+
+[node name="Backgroundmusic" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("2_chgkj")
+autoplay = true

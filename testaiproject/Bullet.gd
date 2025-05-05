@@ -2,8 +2,12 @@ extends Area2D
 
 var velocity = Vector2.ZERO
 var collision_radius = 4  # Radius for collision detection
+var world_size: Vector2
 
-func _ready():
+func _ready():	
+	var main = get_tree().get_root().get_node("Main")
+	world_size = main.world_size
+	
 	# Create a small white circle for the bullet
 	var circle = ColorRect.new()
 	circle.size = Vector2(8, 8)  # 8x8 pixel square
@@ -42,10 +46,11 @@ func _process(delta):
 				queue_free()  # Remove the bullet
 				return
 	
-	# Remove bullet if it goes off screen
-	var screen_rect = get_viewport().get_visible_rect()
-	if not screen_rect.has_point(position):
+	# Remove bullet if it goes off map
+	var world_bounds = Rect2(Vector2.ZERO, world_size)
+	if not world_bounds.has_point(position):
 		queue_free()
+
 
 func _on_body_entered(body):
 	if body.is_in_group("enemies"):
