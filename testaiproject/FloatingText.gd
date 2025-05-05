@@ -42,11 +42,7 @@ func _ready():
 	timer.start()
 	print("Animation timer started for ", duration, " seconds")
 
-func _process(delta):
-	if not has_node("AnimationTimer"):
-		print("ERROR: AnimationTimer missing in _process!")
-		return
-		
+func _process(delta):	
 	var timer = $AnimationTimer
 	if timer.time_left > 0:
 		var progress = 1.0 - (timer.time_left / duration)
@@ -58,9 +54,7 @@ func _process(delta):
 		if progress > fade_start:
 			var fade_progress = (progress - fade_start) / (1.0 - fade_start)
 			modulate.a = 1.0 - fade_progress
-			print("Fading out: ", fade_progress)  # Debug print
 	else:
-		print("Animation complete, removing text")  # Debug print
 		queue_free()
 
 func set_text(text: String):
