@@ -9,6 +9,7 @@ size = Vector2(40, 40)
 script = ExtResource("1_ft3p3")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(-20, -20)
 shape = SubResource("RectangleShape2D_gc20d")
 
 [node name="ColorRect" type="ColorRect" parent="."]

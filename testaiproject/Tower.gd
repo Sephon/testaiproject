@@ -5,6 +5,7 @@ var bullet_speed = 300
 var tower_range = 300
 var last_shot_time = 0.0
 var shot_cooldown = 2.5  # Time between shots in seconds
+var gunshot_sound = preload("res://Sounds/gunshot.mp3")
 
 # Tower health variables
 var health = 100
@@ -19,6 +20,9 @@ var health_bar_height = 4
 var health_bar: Node2D
 var health_bar_bg: ColorRect
 var health_bar_fill: ColorRect
+
+# Audio player for gunshot sound
+var gunshot_audio_player: AudioStreamPlayer
 
 func _ready():
 	# Create health bar container
@@ -40,6 +44,11 @@ func _ready():
 	
 	# Update initial health bar
 	update_health_bar()
+	
+	# Setup audio player for gunshot sound
+	gunshot_audio_player = AudioStreamPlayer.new()
+	gunshot_audio_player.stream = gunshot_sound
+	add_child(gunshot_audio_player)
 
 func _process(delta):
 	if exploding:
@@ -110,6 +119,36 @@ func shoot_at_enemy(target_enemy):
 	# Calculate direction to enemy
 	var direction = (target_enemy.position - position).normalized()
 	bullet.velocity = direction * bullet_speed 
+	
+	gunshot_audio_player.play()
+	
+# not used yet, I need to get the target_velocity first and to learn how Vector2 works in this aspect
+func get_predicted_position(target_pos: Vector2, target_velocity: Vector2, bullet_speed: float) -> Vector2:
+	var to_target = target_pos - position
+	var a = target_velocity.length_squared() - bullet_speed * bullet_speed
+	var b = 2 * to_target.dot(target_velocity)
+	var c = to_target.length_squared()
+
+	if abs(a) < 0.001:
+		# Bullet speed ≈ target speed: fallback to naive aim
+		return target_pos
+
+	var discriminant = b * b - 4 * a * c
+	if discriminant < 0:
+		# No valid solution, aim directly at target
+		return target_pos
+
+	var t1 = (-b - sqrt(discriminant)) / (2 * a)
+	var t2 = (-b + sqrt(discriminant)) / (2 * a)
+	var t = min(t1, t2)
+	
+	if t < 0:
+		t = max(t1, t2)
+	if t < 0:
+		# Both times negative, target is moving away too fast
+		return target_pos
+
+	return target_pos + target_velocity * t
 
 func update_health_bar():
 	var health_percent = float(health) / max_health

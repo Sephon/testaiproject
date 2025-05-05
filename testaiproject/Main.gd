@@ -5,6 +5,7 @@ var bullet_scene = preload("res://Bullet.tscn")
 var enemy_scene = preload("res://Enemy.tscn")
 var resource_node_scene = preload("res://ResourceNode.tscn")
 var tower_scene = preload("res://Tower.tscn")
+var coin_sound = preload("res://Sounds/coin.wav")
 
 # World size variables
 var world_size = Vector2(2000, 2000)  # Large playing field
@@ -53,10 +54,18 @@ var player_explosion_duration = 0.3
 var player_destroyed = false  # Track if player node is destroyed
 var min_spawn_distance = 200
 
+# Audio player for coin sound
+var coin_audio_player: AudioStreamPlayer
+
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	# Initialize game objects
 	$Player.position = world_center  # Start player in center of world
+	
+	# Setup audio player for coin sound
+	coin_audio_player = AudioStreamPlayer.new()
+	coin_audio_player.stream = coin_sound
+	add_child(coin_audio_player)
 	
 	# Setup camera
 	camera = Camera2D.new()
@@ -264,6 +273,9 @@ func spawn_resource_node():
 func add_resources(type: String, amount: int):
 	resources += amount
 	update_ui()
+	
+	# Play coin sound
+	coin_audio_player.play()
 	
 	# Create floating text at player position
 	if is_instance_valid($Player):

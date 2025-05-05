@@ -6,6 +6,8 @@ var exploding = false
 var explosion_time = 0.0
 var explosion_duration = 0.3
 var explosion_scene = preload("res://ExplosionEffect.tscn")
+var sound_explode = preload("res://Sounds/explosion.wav")
+var audio_player_explode: AudioStreamPlayer
 
 # Movement behavior variables
 var current_direction = Vector2.ZERO
@@ -28,7 +30,11 @@ func _ready():
 	body_entered.connect(_on_body_entered)
 	# Initialize random wander angle
 	wander_angle = randf() * TAU  # Random angle between 0 and 2π
-	print("Enemy ready with collision shape")
+	
+	# Setup audio player for gunshot sound
+	audio_player_explode = AudioStreamPlayer.new()
+	audio_player_explode.stream = sound_explode
+	add_child(audio_player_explode)
 
 func _process(delta):
 	if not exploding:
@@ -110,7 +116,7 @@ func attack_target():
 		elif current_target.name == "Player":
 			# Player hit logic is handled in Main.gd
 			pass
-
+	
 func calculate_separation() -> Vector2:
 	var separation_force = Vector2.ZERO
 	var neighbors = 0
@@ -155,4 +161,6 @@ func start_explosion():
 	var explosion = explosion_scene.instantiate()
 	get_parent().add_child(explosion)
 	explosion.position = position
+	
+	audio_player_explode.play()
 	
