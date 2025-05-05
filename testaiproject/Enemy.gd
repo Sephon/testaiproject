@@ -31,6 +31,10 @@ func _process(delta):
 		
 		if explosion_time >= explosion_duration:
 			print("Enemy destroyed after explosion")
+			# Notify Main scene about the kill
+			var main = get_node("/root/Main")
+			if main:
+				main.enemy_killed()
 			queue_free()
 
 func _on_body_entered(body):

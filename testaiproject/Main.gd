@@ -7,6 +7,10 @@ var bullet_scene = preload("res://Bullet.tscn")
 var enemy_scene = preload("res://Enemy.tscn")
 var resource_node_scene = preload("res://ResourceNode.tscn")
 
+# UI variables
+var kills = 0
+var ui_label: Label
+
 # Spawn variables
 var spawn_timer = 0.0
 var spawn_interval = 5.0  # Spawn every 5 seconds
@@ -38,12 +42,15 @@ func _ready() -> void:
 	$Player.position = Vector2(100, 100)
 	$Tower.position = Vector2(400, 300)
 	
+	# Create UI label
+	ui_label = Label.new()
+	ui_label.position = Vector2(20, 20)
+	ui_label.add_theme_font_size_override("font_size", 24)
+	add_child(ui_label)
+	update_ui()
+	
 	# Connect the player's body_entered signal
-	if $Player is Area2D:
-		$Player.body_entered.connect(_on_player_body_entered)
-		print("\nConnected player body_entered signal")
-	else:
-		print("\nERROR: Player is not an Area2D!")
+	$Player.body_entered.connect(_on_player_body_entered)
 	
 	print("Game initialized")
 
@@ -196,8 +203,8 @@ func spawn_enemy():
 	var floating_text = floating_text_scene.instantiate()
 	add_child(floating_text)
 	floating_text.position = $Player.position + Vector2(0, -30) # Position aboveplayer
-	floating_text.set_text("+ enemy")  # Use set_text function
-	floating_text.modulate = Color(1, 0.84, 0)  # Gold color
+	floating_text.set_text("! enemy spawned")  # Use set_text function
+	floating_text.modulate = Color(1, 0, 0)  # Gold color
 
 func spawn_resource_node():
 	# Count current resource nodes
@@ -213,6 +220,7 @@ func spawn_resource_node():
 func add_resources(type: String, amount: int):
 	resources += amount
 	print("Resources: ", resources)
+	update_ui()
 	
 	# Create floating text
 	if is_instance_valid($Player):
@@ -240,3 +248,11 @@ func _on_player_body_entered(body):
 		print("Player hit by enemy!")
 		player_dead = true
 		player_explosion_time = 0.0
+
+func enemy_killed() -> void:
+	kills += 1
+	update_ui()
+
+func update_ui() -> void:
+	if ui_label:
+		ui_label.text = "Kills: " + str(kills) + "\nResources: " + str(resources)
