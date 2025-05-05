@@ -14,46 +14,32 @@ var explosion_time = 0.0
 var explosion_duration = 0.3
 
 # Health bar variables
-var health_bar: ProgressBar
 var health_bar_width = 50
-var health_bar_height = 5
-var health_bar_offset = Vector2(0, 35)  # Position below the tower
+var health_bar_height = 4
+var health_bar: Node2D
+var health_bar_bg: ColorRect
+var health_bar_fill: ColorRect
 
 func _ready():
-	# Create visual representation
-	var tower = ColorRect.new()
-	tower.size = Vector2(50, 50)  # 50x50 pixel square
-	tower.color = Color(0, 0, 1, 1)  # Blue color
-	tower.position = Vector2(-25, -25)  # Center the square
-	add_child(tower)
-	
-	# Create health bar
-	health_bar = ProgressBar.new()
-	health_bar.size = Vector2(health_bar_width, health_bar_height)
-	health_bar.position = Vector2(-health_bar_width/2, 0) + health_bar_offset
-	health_bar.min_value = 0
-	health_bar.max_value = max_health
-	health_bar.value = health
-	health_bar.show_percentage = false
-	
-	# Style the health bar
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.2, 0.2, 0.2)  # Dark background
-	style.border_width_left = 1
-	style.border_width_top = 1
-	style.border_width_right = 1
-	style.border_width_bottom = 1
-	style.border_color = Color(0.5, 0.5, 0.5)  # Gray border
-	health_bar.add_theme_stylebox_override("background", style)
-	
-	var fill_style = StyleBoxFlat.new()
-	fill_style.bg_color = Color(0, 1, 0)  # Green fill
-	health_bar.add_theme_stylebox_override("fill", fill_style)
-	
+	# Create health bar container
+	health_bar = Node2D.new()
+	health_bar.position = Vector2(-health_bar_width/2, 35)  # Center below tower
 	add_child(health_bar)
 	
-	# Add to towers group for easy access
-	add_to_group("towers")
+	# Create background bar
+	health_bar_bg = ColorRect.new()
+	health_bar_bg.size = Vector2(health_bar_width, health_bar_height)
+	health_bar_bg.color = Color(0.2, 0.2, 0.2, 0.8)  # Dark gray with slight transparency
+	health_bar.add_child(health_bar_bg)
+	
+	# Create fill bar
+	health_bar_fill = ColorRect.new()
+	health_bar_fill.size = Vector2(health_bar_width, health_bar_height)
+	health_bar_fill.color = Color(0, 1, 0, 0.8)  # Green with slight transparency
+	health_bar.add_child(health_bar_fill)
+	
+	# Update initial health bar
+	update_health_bar()
 
 func _process(delta):
 	if exploding:
@@ -95,24 +81,12 @@ func take_damage(amount: int, attacker = null):
 	health -= amount
 	print("Tower took damage: ", amount, " Health remaining: ", health)
 	
-	# Update health bar
-	health_bar.value = health
+	update_health_bar()
 	
-	# Update health bar color based on health percentage
-	var health_percent = float(health) / max_health
-	var fill_style = health_bar.get_theme_stylebox("fill") as StyleBoxFlat
-	if fill_style:
-		if health_percent > 0.6:
-			fill_style.bg_color = Color(0, 1, 0)  # Green
-		elif health_percent > 0.3:
-			fill_style.bg_color = Color(1, 1, 0)  # Yellow
-		else:
-			fill_style.bg_color = Color(1, 0, 0)  # Red
-	
-	# Update tower color based on health percentage
-	var tower = get_node_or_null("ColorRect")
-	if tower:
-		tower.color = Color(0, 0, 1, health_percent)  # Fade blue based on health
+	# Flash white when taking damage
+	modulate = Color(2, 2, 2)
+	await get_tree().create_timer(0.1).timeout
+	modulate = Color(1, 1, 1)
 	
 	if health <= 0:
 		start_explosion()
@@ -136,3 +110,15 @@ func shoot_at_enemy(target_enemy):
 	# Calculate direction to enemy
 	var direction = (target_enemy.position - position).normalized()
 	bullet.velocity = direction * bullet_speed 
+
+func update_health_bar():
+	var health_percent = float(health) / max_health
+	health_bar_fill.size.x = health_bar_width * health_percent
+	
+	# Update color based on health percentage
+	if health_percent > 0.6:
+		health_bar_fill.color = Color(0, 1, 0, 0.8)  # Green
+	elif health_percent > 0.3:
+		health_bar_fill.color = Color(1, 1, 0, 0.8)  # Yellow
+	else:
+		health_bar_fill.color = Color(1, 0, 0, 0.8)  # Red

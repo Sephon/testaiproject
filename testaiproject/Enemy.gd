@@ -93,8 +93,9 @@ func find_closest_target():
 	
 	# Check towers
 	for tower in get_tree().get_nodes_in_group("towers"):
-		if is_instance_valid(tower) and not tower.is_queued_for_deletion():
+		if is_instance_valid(tower) and not tower.is_queued_for_deletion():			
 			var distance = position.distance_to(tower.position)
+			print("Tower distance is: ", distance)
 			if distance < closest_distance:
 				closest_distance = distance
 				current_target = tower
