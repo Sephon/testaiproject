@@ -14,12 +14,19 @@ var last_tower_placement = 0.0
 # UI variables
 var kills = 0
 var ui_label: Label
+var game_timer_label: Label
 
 # Spawn variables
 var spawn_timer = 0.0
-var spawn_interval = 5.0  # Spawn every 5 seconds
-var min_spawn_distance = 100  # Minimum distance from player/tower
-var screen_margin = 50  # Keep enemies away from screen edges
+var spawn_interval = 5.0  # Initial spawn interval (5 seconds)
+var min_spawn_interval = 0.5  # Minimum spawn interval (2 enemies per second)
+var spawn_interval_decrease_rate = 0.5  # How much to decrease interval per minute
+var game_time = 0.0  # Total time elapsed
+var max_game_time = 600.0  # 10 minutes in seconds
+
+# Spawn progression variables
+var current_spawn_interval: float
+var spawn_progress_label: Label
 
 # Resource variables
 var resources = 10  # Start with 10 resources
@@ -35,17 +42,33 @@ var player_dead = false
 var player_explosion_time = 0.0
 var player_explosion_duration = 0.3
 var player_destroyed = false  # Track if player node is destroyed
-
+var min_spawn_distance = 200
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	# Initialize game objects
 	$Player.position = Vector2(100, 100)
 	
-	# Create UI label
+	# Create UI label for kills and resources
 	ui_label = Label.new()
 	ui_label.position = Vector2(20, 20)
 	ui_label.add_theme_font_size_override("font_size", 24)
 	add_child(ui_label)
+	
+	# Create game timer label
+	game_timer_label = Label.new()
+	game_timer_label.position = Vector2(20, 80)
+	game_timer_label.add_theme_font_size_override("font_size", 20)
+	add_child(game_timer_label)
+	
+	# Create spawn progress label
+	spawn_progress_label = Label.new()
+	spawn_progress_label.position = Vector2(20, 60)
+	spawn_progress_label.add_theme_font_size_override("font_size", 16)
+	add_child(spawn_progress_label)
+	
+	# Initialize spawn interval
+	current_spawn_interval = spawn_interval
+	
 	update_ui()
 	
 	# Connect the player's body_entered signal
@@ -55,17 +78,23 @@ func _ready() -> void:
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
-	# Handle tower placement
-	if Input.is_action_just_pressed("ui_select") or Input.is_key_pressed(KEY_B):  # B key or space
-		var current_time = Time.get_ticks_msec() / 1000.0
-		if current_time - last_tower_placement >= tower_placement_cooldown:
-			place_tower()
-			last_tower_placement = current_time
-
-	# Handle enemy spawning
 	if not player_dead:
+		# Update game time
+		game_time += delta
+		
+		# Update spawn interval based on time
+		update_spawn_interval()
+		
+		# Handle tower placement
+		if Input.is_action_just_pressed("ui_select") or Input.is_key_pressed(KEY_B):  # B key or space
+			var current_time = Time.get_ticks_msec() / 1000.0
+			if current_time - last_tower_placement >= tower_placement_cooldown:
+				place_tower()
+				last_tower_placement = current_time
+
+		# Handle enemy spawning
 		spawn_timer += delta
-		if spawn_timer >= spawn_interval:
+		if spawn_timer >= current_spawn_interval:
 			spawn_timer = 0
 			spawn_enemy()
 		
@@ -122,7 +151,7 @@ func get_valid_spawn_position() -> Vector2:
 	
 	# Randomly choose which side to spawn from (0: top, 1: right, 2: bottom, 3: left)
 	var side = randi() % 4
-	
+	var screen_margin = 0
 	match side:
 		0:  # Top
 			position = Vector2(
@@ -152,6 +181,7 @@ func get_valid_resource_position() -> Vector2:
 	var viewport_size = get_viewport_rect().size
 	var max_attempts = 10
 	var position = Vector2.ZERO
+	var screen_margin = 0
 	
 	for i in range(max_attempts):
 		# Generate random position within screen bounds (with margin)
@@ -231,6 +261,12 @@ func enemy_killed() -> void:
 func update_ui() -> void:
 	if ui_label:
 		ui_label.text = "Kills: " + str(kills) + "\nResources: " + str(resources)
+	
+	if game_timer_label:
+		var minutes = int(game_time / 60)
+		var seconds = int(game_time) % 60
+		var spawns_per_second = 1.0 / current_spawn_interval
+		game_timer_label.text = "Time: %02d:%02d\nSpawn Rate: %.1f/sec" % [minutes, seconds, spawns_per_second]
 
 func place_tower() -> void:
 	if resources >= tower_cost and is_instance_valid($Player):
@@ -258,3 +294,14 @@ func place_tower() -> void:
 		floating_text.position = $Player.position + Vector2(0, -30)
 		floating_text.set_text("Need " + str(tower_cost) + " gold!")
 		floating_text.modulate = Color(1, 0, 0)  # Red color for error
+
+func update_spawn_interval():
+	# Calculate progress (0 to 1)
+	var progress = min(game_time / max_game_time, 1.0)
+	
+	# Calculate new spawn interval
+	# Start at spawn_interval and decrease to min_spawn_interval over time
+	current_spawn_interval = spawn_interval - (spawn_interval - min_spawn_interval) * progress
+	
+	# Update UI with time and spawn rate
+	update_ui()

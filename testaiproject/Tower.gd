@@ -1,8 +1,8 @@
 extends Node2D
 
 var bullet_scene = preload("res://Bullet.tscn")
-var bullet_speed = 200
-var tower_range = 200
+var bullet_speed = 300
+var tower_range = 300
 var last_shot_time = 0.0
 var shot_cooldown = 2.5  # Time between shots in seconds
 
