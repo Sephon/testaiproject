@@ -1,0 +1,40 @@
+extends Area2D
+
+var velocity = Vector2.ZERO
+var collision_radius = 4  # Radius for collision detection
+
+func _ready():
+	# Create a small white circle for the bullet
+	var circle = ColorRect.new()
+	circle.size = Vector2(8, 8)  # 8x8 pixel square
+	circle.color = Color.WHITE
+	circle.position = Vector2(-4, -4)  # Center the square
+	add_child(circle)
+	
+	# Add collision shape
+	var collision_shape = CollisionShape2D.new()
+	var shape = CircleShape2D.new()
+	shape.radius = collision_radius
+	collision_shape.shape = shape
+	add_child(collision_shape)
+	
+	print("Bullet ready with collision shape")
+
+func _process(delta):
+	position += velocity * delta
+	
+	# Check for collision with enemy using distance
+	var enemy = get_node_or_null("/root/Main/Enemy")
+	if enemy and not enemy.is_queued_for_deletion():
+		var distance = position.distance_to(enemy.position)
+		if distance < collision_radius + 15:  # 15 is approximate enemy radius
+			print("Bullet hit enemy! Distance: ", distance)
+			# Get the main scene to handle the explosion
+			var main = get_node("/root/Main")
+			if main:
+				main.start_explosion()
+			queue_free()  # Remove the bullet
+	
+	# Remove bullet if it goes off screen
+	if position.x < -100 or position.x > 1200 or position.y < -100 or position.y > 800:
+		queue_free() 
