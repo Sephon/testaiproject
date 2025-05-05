@@ -1,11 +1,16 @@
 extends Node2D
 
 var player_speed = 300
-var tower_range = 200
 var bullet_speed = 400
 var bullet_scene = preload("res://Bullet.tscn")
 var enemy_scene = preload("res://Enemy.tscn")
 var resource_node_scene = preload("res://ResourceNode.tscn")
+var tower_scene = preload("res://Tower.tscn")
+
+# Tower placement variables
+var tower_cost = 10
+var tower_placement_cooldown = 0.5  # Seconds between tower placements
+var last_tower_placement = 0.0
 
 # UI variables
 var kills = 0
@@ -18,17 +23,13 @@ var min_spawn_distance = 100  # Minimum distance from player/tower
 var screen_margin = 50  # Keep enemies away from screen edges
 
 # Resource variables
-var resources = 0
+var resources = 10  # Start with 10 resources
 var resource_spawn_timer = 0.0
 var resource_spawn_interval = 10.0  # Spawn resource node every 10 seconds
 var max_resource_nodes = 5  # Maximum number of resource nodes at once
 
 # Floating text variables
 var floating_text_scene = preload("res://FloatingText.tscn")
-
-# Turret cooldown variables
-var last_shot_time = 0.0
-var shot_cooldown = 0.5  # Time between shots in seconds
 
 # Player variables
 var player_dead = false
@@ -40,7 +41,6 @@ var player_destroyed = false  # Track if player node is destroyed
 func _ready() -> void:
 	# Initialize game objects
 	$Player.position = Vector2(100, 100)
-	$Tower.position = Vector2(400, 300)
 	
 	# Create UI label
 	ui_label = Label.new()
@@ -56,6 +56,13 @@ func _ready() -> void:
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
+	# Handle tower placement
+	if Input.is_action_just_pressed("ui_select") or Input.is_key_pressed(KEY_B):  # B key or space
+		var current_time = Time.get_ticks_msec() / 1000.0
+		if current_time - last_tower_placement >= tower_placement_cooldown:
+			place_tower()
+			last_tower_placement = current_time
+
 	# Handle enemy spawning
 	if not player_dead:
 		spawn_timer += delta
@@ -109,24 +116,6 @@ func _process(delta: float) -> void:
 			if is_instance_valid($Player):
 				$Player.queue_free()
 			player_destroyed = true
-	
-	# Tower shooting with cooldown
-	var current_time = Time.get_ticks_msec() / 1000.0  # Convert to seconds
-	if (current_time - last_shot_time) >= shot_cooldown:
-		# Find closest enemy in range
-		var closest_enemy = null
-		var closest_distance = tower_range
-		
-		for enemy in get_tree().get_nodes_in_group("enemies"):
-			if is_instance_valid(enemy):
-				var distance = $Tower.position.distance_to(enemy.position)
-				if distance < closest_distance:
-					closest_enemy = enemy
-					closest_distance = distance
-		
-		if closest_enemy:
-			shoot_at_enemy(closest_enemy)
-			last_shot_time = current_time
 
 func get_valid_spawn_position() -> Vector2:
 	var viewport_size = get_viewport_rect().size
@@ -255,3 +244,30 @@ func enemy_killed() -> void:
 func update_ui() -> void:
 	if ui_label:
 		ui_label.text = "Kills: " + str(kills) + "\nResources: " + str(resources)
+
+func place_tower() -> void:
+	if resources >= tower_cost and is_instance_valid($Player):
+		# Create new tower
+		var new_tower = tower_scene.instantiate()
+		add_child(new_tower)
+		new_tower.position = $Player.position
+		
+		# Deduct resources
+		resources -= tower_cost
+		update_ui()
+		
+		# Show floating text for tower placement
+		var floating_text = floating_text_scene.instantiate()
+		add_child(floating_text)
+		floating_text.position = $Player.position + Vector2(0, -30)
+		floating_text.set_text("-" + str(tower_cost) + " gold")
+		floating_text.modulate = Color(1, 0, 0)  # Red color for spending
+		
+		print("Tower placed at position: ", new_tower.position)
+	else:
+		# Show floating text for insufficient resources
+		var floating_text = floating_text_scene.instantiate()
+		add_child(floating_text)
+		floating_text.position = $Player.position + Vector2(0, -30)
+		floating_text.set_text("Need " + str(tower_cost) + " gold!")
+		floating_text.modulate = Color(1, 0, 0)  # Red color for error
