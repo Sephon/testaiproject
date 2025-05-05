@@ -8,6 +8,8 @@ var last_collection_time = 0.0
 
 # Resource exhaustion variables
 var max_collections = 0  # Will be set randomly in _ready
+var const_max_collections = 10
+var rnd_bonus = 0
 var current_collections = 0
 var exploding = false
 var explosion_time = 0.0
@@ -15,7 +17,8 @@ var explosion_duration = 0.3
 
 func _ready():
 	# Set random number of collections before exhaustion (1-10)
-	max_collections = randi() % 10 + 1
+	max_collections = randi() % const_max_collections + 1
+	rnd_bonus = randi() % max_collections + 1
 	print("Resource node will exhaust after ", max_collections, " collections")
 	
 	# Create visual representation
@@ -78,6 +81,7 @@ func collect_resource():
 		print("Collections remaining: ", max_collections - current_collections)
 		
 		if current_collections >= max_collections:
+			main.add_resources(resource_type, rnd_bonus)
 			start_explosion()
 
 func start_explosion():

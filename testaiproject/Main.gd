@@ -219,7 +219,6 @@ func spawn_resource_node():
 
 func add_resources(type: String, amount: int):
 	resources += amount
-	print("Resources: ", resources)
 	update_ui()
 	
 	# Create floating text
