@@ -17,6 +17,12 @@ var separation_weight = 1.5
 var last_direction_change = 0.0
 var direction_change_interval = 0.5  # Change direction every 0.5 seconds
 
+# Attack variables
+var attack_damage = 10
+var attack_cooldown = 1.0  # Seconds between attacks
+var last_attack_time = 0.0
+var current_target = null
+
 func _ready():
 	body_entered.connect(_on_body_entered)
 	# Initialize random wander angle
@@ -25,11 +31,12 @@ func _ready():
 
 func _process(delta):
 	if not exploding:
-		# Get reference to player
-		var player = get_node_or_null("/root/Main/Player")
-		if player and not player.is_queued_for_deletion():
-			# Calculate base direction to player
-			var to_player = (player.position - position).normalized()
+		# Find closest target (player or tower)
+		find_closest_target()
+		
+		if current_target and is_instance_valid(current_target):
+			# Calculate base direction to target
+			var to_target = (current_target.position - position).normalized()
 			
 			# Add separation from other enemies
 			var separation = calculate_separation()
@@ -38,7 +45,7 @@ func _process(delta):
 			var wander = calculate_wander(delta)
 			
 			# Combine behaviors
-			current_direction = (to_player + separation * separation_weight + wander).normalized()
+			current_direction = (to_target + separation * separation_weight + wander).normalized()
 			
 			# Add some randomness to direction changes
 			last_direction_change += delta
@@ -49,6 +56,11 @@ func _process(delta):
 			
 			# Move with the calculated direction
 			position += current_direction * speed * delta
+			
+			# Check if we're close enough to attack
+			var distance = position.distance_to(current_target.position)
+			if distance < 30:  # Attack range
+				attack_target()
 	else:
 		# Handle explosion effect
 		explosion_time += delta
@@ -65,6 +77,37 @@ func _process(delta):
 			if main:
 				main.enemy_killed()
 			queue_free()
+
+func find_closest_target():
+	var closest_distance = INF
+	current_target = null
+	
+	# Check player
+	var player = get_node_or_null("/root/Main/Player")
+	if player and not player.is_queued_for_deletion():
+		var distance = position.distance_to(player.position)
+		if distance < closest_distance:
+			closest_distance = distance
+			current_target = player
+	
+	# Check towers
+	for tower in get_tree().get_nodes_in_group("towers"):
+		if is_instance_valid(tower) and not tower.is_queued_for_deletion():
+			var distance = position.distance_to(tower.position)
+			if distance < closest_distance:
+				closest_distance = distance
+				current_target = tower
+
+func attack_target():
+	var current_time = Time.get_ticks_msec() / 1000.0
+	if current_time - last_attack_time >= attack_cooldown:
+		last_attack_time = current_time
+		
+		if current_target.is_in_group("towers"):
+			current_target.take_damage(attack_damage, self)  # Pass self as attacker
+		elif current_target.name == "Player":
+			# Player hit logic is handled in Main.gd
+			pass
 
 func calculate_separation() -> Vector2:
 	var separation_force = Vector2.ZERO

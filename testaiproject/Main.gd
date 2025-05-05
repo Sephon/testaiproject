@@ -1,7 +1,6 @@
 extends Node2D
 
 var player_speed = 300
-var bullet_speed = 400
 var bullet_scene = preload("res://Bullet.tscn")
 var enemy_scene = preload("res://Enemy.tscn")
 var resource_node_scene = preload("res://ResourceNode.tscn")
@@ -217,18 +216,6 @@ func add_resources(type: String, amount: int):
 		floating_text.position = $Player.position + Vector2(0, -30)# Position aboveplayer
 		floating_text.set_text("+" + str(amount) + " " + type)  # Use set_text function
 		floating_text.modulate = Color(1, 0.84, 0)  # Gold color
-
-func shoot_at_enemy(target_enemy):
-	if not is_instance_valid(target_enemy) or not is_instance_valid($Tower):
-		return
-		
-	var bullet = bullet_scene.instantiate()
-	add_child(bullet)
-	bullet.position = $Tower.position
-	
-	# Calculate direction to enemy
-	var direction = (target_enemy.position - $Tower.position).normalized()
-	bullet.velocity = direction * bullet_speed
 
 func _on_player_body_entered(body):
 	print("Player hit by: ", body.name)
