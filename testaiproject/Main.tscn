@@ -1,9 +1,6 @@
-[gd_scene load_steps=4 format=3 uid="uid://coiypxkeqrkof"]
+[gd_scene load_steps=3 format=3 uid="uid://coiypxkeqrkof"]
 
 [ext_resource type="Script" path="res://Main.gd" id="1_gnnvp"]
-
-[sub_resource type="CircleShape2D" id="CircleShape2D_l74l2"]
-radius = 15.0
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_sblpp"]
 size = Vector2(40, 40)
@@ -17,18 +14,6 @@ offset_top = 300.0
 offset_right = 450.0
 offset_bottom = 350.0
 color = Color(0, 0, 1, 1)
-
-[node name="Enemy" type="Area2D" parent="."]
-
-[node name="ColorRect" type="ColorRect" parent="Enemy"]
-offset_left = -15.0
-offset_top = -15.0
-offset_right = 15.0
-offset_bottom = 15.0
-color = Color(1, 0, 0, 1)
-
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Enemy"]
-shape = SubResource("CircleShape2D_l74l2")
 
 [node name="Player" type="Area2D" parent="."]
 

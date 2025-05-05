@@ -1,20 +1,20 @@
 extends Node2D
 
 var player_speed = 300
-var enemy_speed = 150
 var tower_range = 200
 var bullet_speed = 400
 var bullet_scene = preload("res://Bullet.tscn")
+var enemy_scene = preload("res://Enemy.tscn")
+
+# Spawn variables
+var spawn_timer = 0.0
+var spawn_interval = 5.0  # Spawn every 5 seconds
+var min_spawn_distance = 100  # Minimum distance from player/tower
+var screen_margin = 50  # Keep enemies away from screen edges
 
 # Turret cooldown variables
 var last_shot_time = 0.0
 var shot_cooldown = 0.5  # Time between shots in seconds
-
-# Enemy variables
-var enemy_exploding = false
-var enemy_explosion_time = 0.0
-var enemy_explosion_duration = 0.3  # Duration of explosion effect in seconds
-var enemy_destroyed = false  # New variable to track if enemy is destroyed
 
 # Player variables
 var player_dead = false
@@ -27,22 +27,6 @@ func _ready() -> void:
 	# Initialize game objects
 	$Player.position = Vector2(100, 100)
 	$Tower.position = Vector2(400, 300)
-	$Enemy.position = Vector2(700, 500)
-	
-	# Print collision setup information
-	print("Player setup:")
-	print("- Is Area2D: ", $Player is Area2D)
-	print("- Monitoring: ", $Player.monitoring)
-	print("- Monitorable: ", $Player.monitorable)
-	print("- Collision Layer: ", $Player.collision_layer)
-	print("- Collision Mask: ", $Player.collision_mask)
-	
-	print("\nEnemy setup:")
-	print("- Is Area2D: ", $Enemy is Area2D)
-	print("- Monitoring: ", $Enemy.monitoring)
-	print("- Monitorable: ", $Enemy.monitorable)
-	print("- Collision Layer: ", $Enemy.collision_layer)
-	print("- Collision Mask: ", $Enemy.collision_mask)
 	
 	# Connect the player's body_entered signal
 	if $Player is Area2D:
@@ -55,6 +39,13 @@ func _ready() -> void:
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
+	# Handle enemy spawning
+	if not player_dead:
+		spawn_timer += delta
+		if spawn_timer >= spawn_interval:
+			spawn_timer = 0
+			spawn_enemy()
+	
 	if not player_dead:
 		# Player movement
 		var input_dir = Vector2.ZERO
@@ -72,13 +63,13 @@ func _process(delta: float) -> void:
 			if is_instance_valid($Player):
 				$Player.position += input_dir * player_speed * delta
 			
-		# Check if player and enemy are touching
-		if is_instance_valid($Player) and is_instance_valid($Enemy):
-			var distance = $Player.position.distance_to($Enemy.position)
-			if distance < 30:  # If they're close enough to be touching
-				print("Objects are touching! Distance: ", distance)
-				# Try to trigger collision manually
-				_on_player_body_entered($Enemy)
+		# Check for enemies touching player
+		for enemy in get_tree().get_nodes_in_group("enemies"):
+			if is_instance_valid(enemy) and is_instance_valid($Player):
+				var distance = $Player.position.distance_to(enemy.position)
+				if distance < 30:  # If they're close enough to be touching
+					print("Player touching enemy! Distance: ", distance)
+					_on_player_body_entered(enemy)
 	elif not player_destroyed:
 		# Handle player explosion effect
 		player_explosion_time += delta
@@ -96,75 +87,73 @@ func _process(delta: float) -> void:
 				$Player.queue_free()
 			player_destroyed = true
 	
-	# Enemy movement and explosion effect
-	if not enemy_exploding and is_instance_valid($Enemy):
-		# Normal enemy movement
-		if is_instance_valid($Player):
-			var direction = ($Player.position - $Enemy.position).normalized()
-			$Enemy.position += direction * enemy_speed * delta
-	elif not enemy_destroyed:
-		# Handle explosion effect
-		enemy_explosion_time += delta
-		var progress = enemy_explosion_time / enemy_explosion_duration
-		print("Explosion progress: ", progress)
-		
-		# Scale up and fade out
-		if is_instance_valid($Enemy):
-			$Enemy.scale = Vector2.ONE * (1.0 + progress * 0.5)  # Scale up to 1.5x
-			$Enemy.modulate.a = 1.0 - progress  # Fade out
-		
-		if enemy_explosion_time >= enemy_explosion_duration:
-			print("Enemy destroyed after explosion")
-			if is_instance_valid($Enemy):
-				$Enemy.queue_free()
-			enemy_destroyed = true
-	
 	# Tower shooting with cooldown
-	if is_instance_valid($Enemy) and is_instance_valid($Tower):
-		var distance_to_enemy = $Tower.position.distance_to($Enemy.position)
-		var current_time = Time.get_ticks_msec() / 1000.0  # Convert to seconds
+	var current_time = Time.get_ticks_msec() / 1000.0  # Convert to seconds
+	if (current_time - last_shot_time) >= shot_cooldown:
+		# Find closest enemy in range
+		var closest_enemy = null
+		var closest_distance = tower_range
 		
-		if distance_to_enemy < tower_range and (current_time - last_shot_time) >= shot_cooldown:
-			shoot_at_enemy()
+		for enemy in get_tree().get_nodes_in_group("enemies"):
+			if is_instance_valid(enemy):
+				var distance = $Tower.position.distance_to(enemy.position)
+				if distance < closest_distance:
+					closest_enemy = enemy
+					closest_distance = distance
+		
+		if closest_enemy:
+			shoot_at_enemy(closest_enemy)
 			last_shot_time = current_time
 
-func shoot_at_enemy():
-	if not is_instance_valid($Enemy) or not is_instance_valid($Player) or not is_instance_valid($Tower):
+func get_valid_spawn_position() -> Vector2:
+	var viewport_size = get_viewport_rect().size
+	var max_attempts = 10
+	var position = Vector2.ZERO
+	
+	for i in range(max_attempts):
+		# Generate random position within screen bounds (with margin)
+		position = Vector2(
+			randf_range(screen_margin, viewport_size.x - screen_margin),
+			randf_range(screen_margin, viewport_size.y - screen_margin)
+		)
+		
+		# Check distance from player and tower
+		var valid_position = true
+		if is_instance_valid($Player):
+			if position.distance_to($Player.position) < min_spawn_distance:
+				valid_position = false
+		if is_instance_valid($Tower):
+			if position.distance_to($Tower.position) < min_spawn_distance:
+				valid_position = false
+		
+		if valid_position:
+			return position
+	
+	# If no valid position found, return a default position far from center
+	return Vector2(viewport_size.x - screen_margin, viewport_size.y - screen_margin)
+
+func spawn_enemy():
+	var new_enemy = enemy_scene.instantiate()
+	add_child(new_enemy)
+	new_enemy.position = get_valid_spawn_position()
+	new_enemy.add_to_group("enemies")  # Add to enemies group for easy access
+	print("Spawned new enemy at position: ", new_enemy.position)
+
+func shoot_at_enemy(target_enemy):
+	if not is_instance_valid(target_enemy) or not is_instance_valid($Tower):
 		return
 		
 	var bullet = bullet_scene.instantiate()
 	add_child(bullet)
 	bullet.position = $Tower.position
 	
-	# Calculate enemy's current velocity
-	var enemy_velocity = ($Player.position - $Enemy.position).normalized() * enemy_speed
-	
-	# Calculate time to reach enemy (approximate)
-	var distance_to_enemy = $Tower.position.distance_to($Enemy.position)
-	var time_to_reach = distance_to_enemy / bullet_speed
-	
-	# Predict enemy's future position
-	var predicted_position = $Enemy.position + enemy_velocity * time_to_reach
-	
-	# Calculate direction to predicted position
-	var direction = (predicted_position - $Tower.position).normalized()
+	# Calculate direction to enemy
+	var direction = (target_enemy.position - $Tower.position).normalized()
 	bullet.velocity = direction * bullet_speed
 
 func _on_player_body_entered(body):
 	print("Player hit by: ", body.name)
-	if body.name == "Enemy":
+	if body.is_in_group("enemies"):
 		print("Player hit by enemy!")
 		player_dead = true
 		player_explosion_time = 0.0
-
-func _on_enemy_body_entered(body):
-	print("Enemy hit by: ", body.name)
-	if body is Area2D:  # Check if it's a bullet
-		print("Hit by bullet!")
-		start_explosion()
-		body.queue_free()  # Remove the bullet
-
-func start_explosion():
-	print("Starting explosion effect on enemy")
-	enemy_exploding = true
-	enemy_explosion_time = 0.0
