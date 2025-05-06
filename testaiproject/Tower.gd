@@ -36,7 +36,6 @@ var health_bar_bg: ColorRect
 var health_bar_fill: ColorRect
 
 # Node references
-var upgrade_border: ColorRect
 var control: Control
 var popup_menu: PopupMenu
 var popup_world_position: Vector2
@@ -48,6 +47,16 @@ var laser_width = 4.0
 var laser_color = Color(1, 0.2, 0.2, 0.8)  # Red with slight transparency
 var laser_fade_time = 0.1  # How long the laser beam stays visible
 var current_laser_fade = 0.0
+
+# Upgrade border variables
+var upgrade_borders: Array[ColorRect] = []
+var max_border_layers = 5  # Maximum number of border layers
+var border_colors: Array[Color] = []  # Store colors for each layer
+
+# Hover effect variables
+var is_hovered = false
+var hover_brightness = 2.0 # How much to brighten when hovered
+var normal_brightness = 1.0
 
 func _init(type: TowerType = TowerType.GUN):
 	tower_type = type
@@ -64,9 +73,29 @@ func _init(type: TowerType = TowerType.GUN):
 			damage = 20
 
 func _ready():
+	# Create upgrade borders first (so they're at the bottom)
+	for i in range(max_border_layers):
+		var border = ColorRect.new()
+		border.visible = false
+		border.z_index = -1  # Ensure borders are below everything
+		border.mouse_filter = Control.MOUSE_FILTER_IGNORE  # Make borders ignore mouse input
+		
+		# Calculate and store the color for this layer
+		var color = Color(1, 0.84, 0)  # Start with bright gold
+		var darken_factor = i * 0.15  # Each layer gets 15% darker
+		color.r = max(0.4, color.r - darken_factor)  # Keep some red
+		color.g = max(0.3, color.g - darken_factor)  # Keep some green
+		color.b = max(0.0, color.b - darken_factor)  # No blue in gold
+		color.a = 0.8 - (i * 0.1)  # Each layer gets more transparent
+		border.color = color
+		border_colors.append(color)
+		
+		add_child(border)
+		upgrade_borders.append(border)
+	
 	# Get node references
-	upgrade_border = $UpgradeBorder
 	control = $Control
+	control.mouse_filter = Control.MOUSE_FILTER_STOP  # Ensure control captures mouse events
 	
 	# Setup a box in the box for visual style, a black center box
 	var head = ColorRect.new()
@@ -94,6 +123,8 @@ func _ready():
 	
 	# Connect input events
 	control.gui_input.connect(_on_control_gui_input)
+	control.mouse_entered.connect(_on_mouse_entered)
+	control.mouse_exited.connect(_on_mouse_exited)
 	
 	# Create health bar container
 	health_bar = Node2D.new()
@@ -314,18 +345,38 @@ func _on_popup_menu_id_pressed(id: int):
 	if id == 1:  # Upgrade Tower option
 		upgrade_tower()
 
+func update_upgrade_borders():
+	# Hide all borders first
+	for border in upgrade_borders:
+		border.visible = false
+	
+	# Show borders based on tower level
+	for i in range(min(tower_level, max_border_layers)):
+		var border = upgrade_borders[i]
+		var size = 20 + (i * 2)  # Base size + 2 pixels per level
+		border.size = Vector2(size * 2, size * 2)  # Double for width and height
+		border.position = Vector2(-size, -size)  # Center the border
+		border.visible = true
+		border.color = border_colors[i]  # Use the stored color for this layer
+
 func upgrade_tower():
-	# Check if player has enough coins (you'll need to implement this)
-	# For now, we'll just upgrade without checking
-	tower_level += 1;
+	tower_level += 1
 	bullet_speed *= upgrade_multiplier
 	tower_range *= upgrade_multiplier
 	shot_cooldown /= upgrade_multiplier
-
-	if tower_level > 1:
-		upgrade_border.visible = true	
+	
+	# Update the upgrade borders
+	update_upgrade_borders()
 	
 	print("Tower upgraded! New stats:")
 	print("Bullet Speed: ", bullet_speed)
 	print("Tower Range: ", tower_range)
 	print("Shot Cooldown: ", shot_cooldown)
+
+func _on_mouse_entered():
+	is_hovered = true
+	modulate = Color(hover_brightness, hover_brightness, hover_brightness)
+
+func _on_mouse_exited():
+	is_hovered = false
+	modulate = Color(normal_brightness, normal_brightness, normal_brightness)
