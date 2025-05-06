@@ -1,0 +1,26 @@
+[gd_scene load_steps=4 format=3 uid="uid://coiypxkeqrkof"]
+
+[ext_resource type="Script" path="res://Main.gd" id="1_gnnvp"]
+[ext_resource type="AudioStream" uid="uid://dspkibvwxipy0" path="res://Music/pixelate-pixelated-dreams.mp3" id="2_5543t"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_sblpp"]
+size = Vector2(40, 40)
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_gnnvp")
+
+[node name="Player" type="Area2D" parent="."]
+
+[node name="ColorRect" type="ColorRect" parent="Player"]
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 20.0
+offset_bottom = 20.0
+color = Color(0, 1, 0, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Player"]
+shape = SubResource("RectangleShape2D_sblpp")
+
+[node name="Backgroundmusic" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("2_5543t")
+autoplay = true

@@ -1,11 +1,17 @@
 extends Node2D
 
+var mainRef
+
 var bullet_scene = preload("res://Bullet.tscn")
 var bullet_speed = 300
 var tower_range = 300
 var last_shot_time = 0.0
 var shot_cooldown = 2.5  # Time between shots in seconds
 var gunshot_sound = preload("res://Sounds/gunshot.mp3")
+
+# Upgrade variables
+var upgrade_cost = 10
+var upgrade_multiplier = 1.1  # How much stats increase when upgraded
 
 # Tower health variables
 var health = 100
@@ -21,10 +27,31 @@ var health_bar: Node2D
 var health_bar_bg: ColorRect
 var health_bar_fill: ColorRect
 
+var tower_level = 1
+
 # Audio player for gunshot sound
 var gunshot_audio_player: AudioStreamPlayer
 
+# Node references
+var upgrade_border: ColorRect
+var control: Control
+var popup_menu: PopupMenu
+var popup_world_position: Vector2  # Store the world position where popup was opened
+
 func _ready():
+	# Get node references
+	upgrade_border = $UpgradeBorder
+	control = $Control
+	
+	# Create popup menu
+	popup_menu = PopupMenu.new()
+	update_popup_menu()
+	popup_menu.id_pressed.connect(_on_popup_menu_id_pressed)
+	get_tree().root.add_child(popup_menu)
+	
+	# Connect input events
+	control.gui_input.connect(_on_control_gui_input)
+	
 	# Create health bar container
 	health_bar = Node2D.new()
 	health_bar.position = Vector2(-health_bar_width/2, 35)  # Center below tower
@@ -49,6 +76,16 @@ func _ready():
 	gunshot_audio_player = AudioStreamPlayer.new()
 	gunshot_audio_player.stream = gunshot_sound
 	add_child(gunshot_audio_player)
+
+func update_popup_menu():
+	popup_menu.clear()
+	popup_menu.add_item("Title: Gun Tower (level: %d)" % tower_level)
+	popup_menu.set_item_disabled(0, true)
+	popup_menu.add_item(str("Upgrade Tower (", tower_level * upgrade_cost, " coins)"))	
+	
+	if mainRef.resources < (tower_level * upgrade_cost):
+		popup_menu.set_item_disabled(1, true)
+
 
 func _process(delta):
 	if exploding:
@@ -82,6 +119,19 @@ func _process(delta):
 		if closest_enemy:
 			shoot_at_enemy(closest_enemy)
 			last_shot_time = current_time
+	
+	# If popup is visible, update its position based on camera movement
+	if popup_menu.visible:
+		# Convert the stored world position to screen position
+		var screen_pos = get_viewport().get_canvas_transform() * popup_world_position
+		popup_menu.position = screen_pos
+		
+		# Check if popup is still on screen
+		var viewport_rect = Rect2(Vector2.ZERO, get_viewport().get_visible_rect().size)
+		var popup_rect = Rect2(popup_menu.position, popup_menu.size)
+		
+		if not viewport_rect.intersects(popup_rect):
+			popup_menu.hide()
 
 func take_damage(amount: int, attacker = null):
 	if exploding:
@@ -161,3 +211,32 @@ func update_health_bar():
 		health_bar_fill.color = Color(1, 1, 0, 0.8)  # Yellow
 	else:
 		health_bar_fill.color = Color(1, 0, 0, 0.8)  # Red
+
+func _on_control_gui_input(event):
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
+			# Store the world position where popup was opened
+			popup_world_position = get_global_mouse_position()
+			# Set initial screen position
+			popup_menu.position = event.global_position
+			popup_menu.popup()
+
+func _on_popup_menu_id_pressed(id: int):
+	if id == 1:  # Upgrade Tower option
+		upgrade_tower()
+
+func upgrade_tower():
+	# Check if player has enough coins (you'll need to implement this)
+	# For now, we'll just upgrade without checking
+	tower_level += 1;
+	bullet_speed *= upgrade_multiplier
+	tower_range *= upgrade_multiplier
+	shot_cooldown /= upgrade_multiplier
+
+	if tower_level > 1:
+		upgrade_border.visible = true	
+	
+	print("Tower upgraded! New stats:")
+	print("Bullet Speed: ", bullet_speed)
+	print("Tower Range: ", tower_range)
+	print("Shot Cooldown: ", shot_cooldown)

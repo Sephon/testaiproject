@@ -39,7 +39,7 @@ var current_spawn_interval: float
 var spawn_progress_label: Label
 
 # Resource variables
-var resources = 10  # Start with 10 resources
+var resources = 100  # Start with 10 resources
 var resource_spawn_timer = 0.0
 var resource_spawn_interval = 10.0  # Spawn resource node every 10 seconds
 var max_resource_nodes = 5  # Maximum number of resource nodes at once
@@ -310,6 +310,7 @@ func place_tower() -> void:
 	if resources >= tower_cost and is_instance_valid($Player):
 		# Create new tower
 		var new_tower = tower_scene.instantiate()
+		new_tower.mainRef = self
 		add_child(new_tower)
 		new_tower.add_to_group("towers")
 		new_tower.position = $Player.position
