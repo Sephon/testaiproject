@@ -1,6 +1,6 @@
 extends Area2D
 
-var speed = 150
+var speed = 250
 var collision_radius = 15
 var exploding = false
 var explosion_time = 0.0

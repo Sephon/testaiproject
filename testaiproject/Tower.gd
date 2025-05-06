@@ -117,7 +117,7 @@ func _ready():
 func update_popup_menu():
 	popup_menu.clear()
 	var tower_name = "Gun Tower" if tower_type == TowerType.GUN else "Laser Tower"
-	popup_menu.add_item("Title: %s (level: %d)" % [tower_name, tower_level])
+	popup_menu.add_item("%s (level: %d)" % [tower_name, tower_level])
 	popup_menu.set_item_disabled(0, true)
 	popup_menu.add_item(str("Upgrade Tower (", tower_level * upgrade_cost, " coins)"))
 	
@@ -214,8 +214,14 @@ func shoot_at_enemy(target_enemy):
 		bullet.position = position
 		bullet.damage = damage
 		
-		# Calculate direction to enemy
-		var direction = (target_enemy.position - position).normalized()
+		# Get enemy's current velocity
+		var target_velocity = target_enemy.current_direction * target_enemy.speed
+		
+		# Calculate predicted position
+		var predicted_pos = get_predicted_position(target_enemy.position, target_velocity, bullet_speed)
+		
+		# Calculate direction to predicted position
+		var direction = (predicted_pos - position).normalized()
 		bullet.velocity = direction * bullet_speed
 		
 	else:  # Laser Tower
@@ -244,6 +250,34 @@ func shoot_at_enemy(target_enemy):
 		tween.tween_property(flash, "modulate:a", 0.0, 0.1)
 		tween.tween_callback(flash.queue_free)
 
+# Calculate where to aim based on target's movement
+func get_predicted_position(target_pos: Vector2, target_velocity: Vector2, bullet_speed: float) -> Vector2:
+	var to_target = target_pos - position
+	var a = target_velocity.length_squared() - bullet_speed * bullet_speed
+	var b = 2 * to_target.dot(target_velocity)
+	var c = to_target.length_squared()
+
+	if abs(a) < 0.001:
+		# Bullet speed ≈ target speed: fallback to naive aim
+		return target_pos
+
+	var discriminant = b * b - 4 * a * c
+	if discriminant < 0:
+		# No valid solution, aim directly at target
+		return target_pos
+
+	var t1 = (-b - sqrt(discriminant)) / (2 * a)
+	var t2 = (-b + sqrt(discriminant)) / (2 * a)
+	var t = min(t1, t2)
+	
+	if t < 0:
+		t = max(t1, t2)
+	if t < 0:
+		# Both times negative, target is moving away too fast
+		return target_pos
+
+	return target_pos + target_velocity * t
+
 func update_health_bar():
 	var health_percent = float(health) / max_health
 	health_bar_fill.size.x = health_bar_width * health_percent
@@ -262,6 +296,7 @@ func _on_control_gui_input(event):
 			# Store the world position where popup was opened
 			popup_world_position = get_global_mouse_position()
 			# Set initial screen position
+			update_popup_menu()
 			popup_menu.position = event.global_position
 			popup_menu.popup()
 

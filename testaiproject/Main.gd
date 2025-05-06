@@ -60,8 +60,10 @@ var coin_audio_player: AudioStreamPlayer
 
 # Build menu variables
 var build_menu_visible = false
-var build_menu_container: Control
+var build_menu_container: Panel
 var build_menu_label: Label
+var build_menu_cooldown = 0.3  # Cooldown in seconds
+var last_build_menu_toggle = 0.0
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
@@ -110,16 +112,20 @@ func _ready() -> void:
 	$Player.body_entered.connect(_on_player_body_entered)
 	
 	# Create build menu container
-	build_menu_container = Control.new()
+	build_menu_container = Panel.new()
 	build_menu_container.visible = false
+	build_menu_container.add_theme_stylebox_override("panel", create_menu_stylebox())
 	hud_container.add_child(build_menu_container)
 	
 	# Create build menu label
 	build_menu_label = Label.new()
-	build_menu_label.position = Vector2(20, get_viewport().get_visible_rect().size.y - 60)
-	build_menu_label.add_theme_font_size_override("font_size", 24)
+	build_menu_label.add_theme_font_size_override("font_size", 20)
 	build_menu_label.text = "Build Menu:\n1. Gun Tower (10 gold)\n2. Laser Tower (15 gold)"
 	build_menu_container.add_child(build_menu_label)
+	
+	# Center the label in the panel
+	build_menu_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	build_menu_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	
 	print("Game initialized")
 
@@ -132,9 +138,12 @@ func _process(delta: float) -> void:
 		# Update spawn interval based on time
 		update_spawn_interval()
 		
-		# Handle build menu
+		# Handle build menu with cooldown
 		if Input.is_action_just_pressed("ui_select") or Input.is_key_pressed(KEY_B):  # B key
-			toggle_build_menu()
+			var current_time = Time.get_ticks_msec() / 1000.0
+			if current_time - last_build_menu_toggle >= build_menu_cooldown:
+				toggle_build_menu()
+				last_build_menu_toggle = current_time
 		
 		# Handle tower selection when menu is open
 		if build_menu_visible:
@@ -145,13 +154,16 @@ func _process(delta: float) -> void:
 				place_tower(Tower.TowerType.LASER)
 				toggle_build_menu()
 		
-		# Handle tower placement
-		#if Input.is_action_just_pressed("ui_select") or Input.is_key_pressed(KEY_B):  # B key or space
-			#var current_time = Time.get_ticks_msec() / 1000.0
-			#if current_time - last_tower_placement >= tower_placement_cooldown:
-				#place_tower()
-				#last_tower_placement = current_time
-
+		# Update build menu position to stay at bottom of screen
+		if build_menu_container:
+			var viewport_size = get_viewport().get_visible_rect().size
+			build_menu_container.size = Vector2(300, 100)  # Fixed size for the menu
+			build_menu_container.position = Vector2(
+				(viewport_size.x - build_menu_container.size.x) / 2,  # Center horizontally
+				viewport_size.y - build_menu_container.size.y - 20  # 20 pixels from bottom
+			)
+			build_menu_label.size = build_menu_container.size  # Make label fill the panel
+		
 		# Handle enemy spawning
 		spawn_timer += delta
 		if spawn_timer >= current_spawn_interval:
@@ -337,34 +349,6 @@ func update_ui() -> void:
 		var spawns_per_second = 1.0 / current_spawn_interval
 		game_timer_label.text = "Time: %02d:%02d\nSpawn Rate: %.1f/sec" % [minutes, seconds, spawns_per_second]
 
-#func place_tower() -> void:
-	#if resources >= tower_cost and is_instance_valid($Player):
-		## Create new tower
-		#var new_tower = tower_scene.instantiate()
-		#new_tower.mainRef = self
-		#new_tower.tower_type = 1
-		#add_child(new_tower)
-		#new_tower.add_to_group("towers")
-		#new_tower.position = $Player.position
-		#
-		## Deduct resources
-		#resources -= tower_cost
-		#update_ui()
-		#
-		## Show floating text for tower placement
-		#var floating_text = floating_text_scene.instantiate()
-		#add_child(floating_text)
-		#floating_text.position = $Player.position + Vector2(0, -30)
-		#floating_text.set_text("-" + str(tower_cost) + " gold")
-		#floating_text.modulate = Color(1, 0, 0)
-	#else:
-		## Show floating text for insufficient resources
-		#var floating_text = floating_text_scene.instantiate()
-		#add_child(floating_text)
-		#floating_text.position = $Player.position + Vector2(0, -30)
-		#floating_text.set_text("Need " + str(tower_cost) + " gold!")
-		#floating_text.modulate = Color(1, 0, 0)
-
 func update_spawn_interval():
 	# Calculate progress (0 to 1)
 	var progress = min(game_time / max_game_time, 1.0)
@@ -409,3 +393,17 @@ func place_tower(tower_type: int) -> void:
 		floating_text.position = $Player.position + Vector2(0, -30)
 		floating_text.set_text("Need " + str(cost) + " gold!")
 		floating_text.modulate = Color(1, 0, 0)
+
+func create_menu_stylebox() -> StyleBoxFlat:
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.2, 0.2, 0.2, 0.9)  # Dark background with high opacity
+	style.border_color = Color(0.8, 0.8, 0.8, 0.9)  # Light border
+	style.border_width_left = 2
+	style.border_width_top = 2
+	style.border_width_right = 2
+	style.border_width_bottom = 2
+	style.corner_radius_top_left = 10
+	style.corner_radius_top_right = 10
+	style.corner_radius_bottom_left = 10
+	style.corner_radius_bottom_right = 10
+	return style
