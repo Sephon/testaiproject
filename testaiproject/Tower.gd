@@ -68,6 +68,16 @@ func _ready():
 	upgrade_border = $UpgradeBorder
 	control = $Control
 	
+	# Setup a box in the box for visual style, a black center box
+	var head = ColorRect.new()
+	if tower_type == TowerType.GUN:
+		head.color = Color.DARK_RED
+	elif tower_type == TowerType.LASER:
+		head.color = Color.YELLOW
+	head.size = Vector2(10,10)
+	head.position = ($ColorRect.size - head.size) / 2
+	$ColorRect.add_child(head)
+
 	# Create laser beam for laser tower
 	if tower_type == TowerType.LASER:
 		laser_beam = Line2D.new()

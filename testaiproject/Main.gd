@@ -80,7 +80,7 @@ func _ready() -> void:
 	camera.position_smoothing_enabled = true
 	camera.position_smoothing_speed = 5.0
 	$Player.add_child(camera)
-	
+		
 	# Create HUD container (this will stay fixed on screen)
 	hud_container = CanvasLayer.new()
 	add_child(hud_container)
