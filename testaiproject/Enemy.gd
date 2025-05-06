@@ -9,6 +9,8 @@ var explosion_scene = preload("res://ExplosionEffect.tscn")
 var sound_explode = preload("res://Sounds/explosion2.wav")
 var audio_player_explode: AudioStreamPlayer
 
+var health = 10
+
 # Movement behavior variables
 var current_direction = Vector2.ZERO
 var wander_angle = 0.0
@@ -149,8 +151,17 @@ func _on_body_entered(body):
 	print("Enemy _on_body_entered called with: ", body.name)  # Debug print
 	if body is Area2D and not exploding:  # Check if it's a bullet
 		print("Enemy hit by bullet!")
+		check_health()
+		body.queue_free()  # Remove the bulle
+		
+
+func take_damage(damage):
+	health -= damage
+	check_health()
+	
+func check_health():
+	if health <= 0:
 		start_explosion()
-		body.queue_free()  # Remove the bullet
 
 func start_explosion():
 	print("Enemy start_explosion called")  # Debug print
