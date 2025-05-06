@@ -6,12 +6,12 @@
 script = ExtResource("1_tower")
 
 [node name="UpgradeBorder" type="ColorRect" parent="."]
+visible = false
 offset_left = -25.0
 offset_top = -25.0
 offset_right = 25.0
 offset_bottom = 25.0
 color = Color(1, 0.84, 0, 0.5)
-visible = false
 
 [node name="ColorRect" type="ColorRect" parent="."]
 offset_left = -20.0

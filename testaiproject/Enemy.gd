@@ -10,6 +10,14 @@ var sound_explode = preload("res://Sounds/explosion2.wav")
 var audio_player_explode: AudioStreamPlayer
 
 var health = 10
+var max_health = 10  # Added max health for health bar calculation
+
+# Health bar variables
+var health_bar_width = 40
+var health_bar_height = 4
+var health_bar: Node2D
+var health_bar_bg: ColorRect
+var health_bar_fill: ColorRect
 
 # Movement behavior variables
 var current_direction = Vector2.ZERO
@@ -37,6 +45,26 @@ func _ready():
 	audio_player_explode = AudioStreamPlayer.new()
 	audio_player_explode.stream = sound_explode
 	add_child(audio_player_explode)
+	
+	# Create health bar container
+	health_bar = Node2D.new()
+	health_bar.position = Vector2(-health_bar_width/2, 25)  # Position below enemy
+	add_child(health_bar)
+	
+	# Create background bar
+	health_bar_bg = ColorRect.new()
+	health_bar_bg.size = Vector2(health_bar_width, health_bar_height)
+	health_bar_bg.color = Color(0.2, 0.2, 0.2, 0.8)  # Dark gray with slight transparency
+	health_bar.add_child(health_bar_bg)
+	
+	# Create fill bar
+	health_bar_fill = ColorRect.new()
+	health_bar_fill.size = Vector2(health_bar_width, health_bar_height)
+	health_bar_fill.color = Color(0, 1, 0, 0.8)  # Green with slight transparency
+	health_bar.add_child(health_bar_fill)
+	
+	# Initially hide health bar since enemy is at full health
+	health_bar.visible = false
 
 func _process(delta):
 	if not exploding:
@@ -157,8 +185,23 @@ func _on_body_entered(body):
 
 func take_damage(damage):
 	health -= damage
+	# Show health bar when taking damage
+	health_bar.visible = true
+	update_health_bar()
 	check_health()
+
+func update_health_bar():
+	var health_percent = float(health) / max_health
+	health_bar_fill.size.x = health_bar_width * health_percent
 	
+	# Update color based on health percentage
+	if health_percent > 0.6:
+		health_bar_fill.color = Color(0, 1, 0, 0.8)  # Green
+	elif health_percent > 0.3:
+		health_bar_fill.color = Color(1, 1, 0, 0.8)  # Yellow
+	else:
+		health_bar_fill.color = Color(1, 0, 0, 0.8)  # Red
+
 func check_health():
 	if health <= 0:
 		start_explosion()
