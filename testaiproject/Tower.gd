@@ -14,6 +14,7 @@ var last_shot_time = 0.0
 var shot_cooldown = 0
 var damage = 0
 var gunshot_sound = preload("res://Sounds/gunshot.mp3")
+var laser_sound = preload("res://Sounds/laser_shot.mp3")
 
 # Upgrade variables
 var upgrade_cost = 10
@@ -39,7 +40,7 @@ var upgrade_border: ColorRect
 var control: Control
 var popup_menu: PopupMenu
 var popup_world_position: Vector2
-var gunshot_audio_player: AudioStreamPlayer
+var fire_audio_player: AudioStreamPlayer
 
 # Laser beam variables
 var laser_beam: Line2D
@@ -105,9 +106,13 @@ func _ready():
 	update_health_bar()
 	
 	# Setup audio player for gunshot sound
-	gunshot_audio_player = AudioStreamPlayer.new()
-	gunshot_audio_player.stream = gunshot_sound
-	add_child(gunshot_audio_player)
+	fire_audio_player = AudioStreamPlayer.new()
+	if tower_type == TowerType.LASER: 
+		fire_audio_player.stream = laser_sound
+	else:
+		fire_audio_player.stream = gunshot_sound
+		
+	add_child(fire_audio_player)
 
 func update_popup_menu():
 	popup_menu.clear()
@@ -202,6 +207,7 @@ func shoot_at_enemy(target_enemy):
 	if not is_instance_valid(target_enemy):
 		return
 		
+	fire_audio_player.play()
 	if tower_type == TowerType.GUN:
 		var bullet = bullet_scene.instantiate()
 		get_parent().add_child(bullet)
@@ -212,7 +218,6 @@ func shoot_at_enemy(target_enemy):
 		var direction = (target_enemy.position - position).normalized()
 		bullet.velocity = direction * bullet_speed
 		
-		gunshot_audio_player.play()
 	else:  # Laser Tower
 		# Create laser beam effect
 		laser_beam.clear_points()

@@ -6,6 +6,7 @@ var enemy_scene = preload("res://Enemy.tscn")
 var resource_node_scene = preload("res://ResourceNode.tscn")
 var tower_scene = preload("res://Tower.tscn")
 var coin_sound = preload("res://Sounds/coin.wav")
+const Tower = preload("res://Tower.gd")
 
 # World size variables
 var world_size = Vector2(2000, 2000)  # Large playing field
@@ -57,6 +58,11 @@ var min_spawn_distance = 200
 # Audio player for coin sound
 var coin_audio_player: AudioStreamPlayer
 
+# Build menu variables
+var build_menu_visible = false
+var build_menu_container: Control
+var build_menu_label: Label
+
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	# Initialize game objects
@@ -103,6 +109,18 @@ func _ready() -> void:
 	# Connect the player's body_entered signal
 	$Player.body_entered.connect(_on_player_body_entered)
 	
+	# Create build menu container
+	build_menu_container = Control.new()
+	build_menu_container.visible = false
+	hud_container.add_child(build_menu_container)
+	
+	# Create build menu label
+	build_menu_label = Label.new()
+	build_menu_label.position = Vector2(20, get_viewport().get_visible_rect().size.y - 60)
+	build_menu_label.add_theme_font_size_override("font_size", 24)
+	build_menu_label.text = "Build Menu:\n1. Gun Tower (10 gold)\n2. Laser Tower (15 gold)"
+	build_menu_container.add_child(build_menu_label)
+	
 	print("Game initialized")
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
@@ -114,12 +132,25 @@ func _process(delta: float) -> void:
 		# Update spawn interval based on time
 		update_spawn_interval()
 		
+		# Handle build menu
+		if Input.is_action_just_pressed("ui_select") or Input.is_key_pressed(KEY_B):  # B key
+			toggle_build_menu()
+		
+		# Handle tower selection when menu is open
+		if build_menu_visible:
+			if Input.is_action_just_pressed("ui_accept") or Input.is_key_pressed(KEY_1):  # 1 key
+				place_tower(Tower.TowerType.GUN)
+				toggle_build_menu()
+			elif Input.is_action_just_pressed("ui_cancel") or Input.is_key_pressed(KEY_2):  # 2 key
+				place_tower(Tower.TowerType.LASER)
+				toggle_build_menu()
+		
 		# Handle tower placement
-		if Input.is_action_just_pressed("ui_select") or Input.is_key_pressed(KEY_B):  # B key or space
-			var current_time = Time.get_ticks_msec() / 1000.0
-			if current_time - last_tower_placement >= tower_placement_cooldown:
-				place_tower()
-				last_tower_placement = current_time
+		#if Input.is_action_just_pressed("ui_select") or Input.is_key_pressed(KEY_B):  # B key or space
+			#var current_time = Time.get_ticks_msec() / 1000.0
+			#if current_time - last_tower_placement >= tower_placement_cooldown:
+				#place_tower()
+				#last_tower_placement = current_time
 
 		# Handle enemy spawning
 		spawn_timer += delta
@@ -306,33 +337,33 @@ func update_ui() -> void:
 		var spawns_per_second = 1.0 / current_spawn_interval
 		game_timer_label.text = "Time: %02d:%02d\nSpawn Rate: %.1f/sec" % [minutes, seconds, spawns_per_second]
 
-func place_tower() -> void:
-	if resources >= tower_cost and is_instance_valid($Player):
-		# Create new tower
-		var new_tower = tower_scene.instantiate()
-		new_tower.mainRef = self
-		new_tower.tower_type = 1
-		add_child(new_tower)
-		new_tower.add_to_group("towers")
-		new_tower.position = $Player.position
-		
-		# Deduct resources
-		resources -= tower_cost
-		update_ui()
-		
-		# Show floating text for tower placement
-		var floating_text = floating_text_scene.instantiate()
-		add_child(floating_text)
-		floating_text.position = $Player.position + Vector2(0, -30)
-		floating_text.set_text("-" + str(tower_cost) + " gold")
-		floating_text.modulate = Color(1, 0, 0)
-	else:
-		# Show floating text for insufficient resources
-		var floating_text = floating_text_scene.instantiate()
-		add_child(floating_text)
-		floating_text.position = $Player.position + Vector2(0, -30)
-		floating_text.set_text("Need " + str(tower_cost) + " gold!")
-		floating_text.modulate = Color(1, 0, 0)
+#func place_tower() -> void:
+	#if resources >= tower_cost and is_instance_valid($Player):
+		## Create new tower
+		#var new_tower = tower_scene.instantiate()
+		#new_tower.mainRef = self
+		#new_tower.tower_type = 1
+		#add_child(new_tower)
+		#new_tower.add_to_group("towers")
+		#new_tower.position = $Player.position
+		#
+		## Deduct resources
+		#resources -= tower_cost
+		#update_ui()
+		#
+		## Show floating text for tower placement
+		#var floating_text = floating_text_scene.instantiate()
+		#add_child(floating_text)
+		#floating_text.position = $Player.position + Vector2(0, -30)
+		#floating_text.set_text("-" + str(tower_cost) + " gold")
+		#floating_text.modulate = Color(1, 0, 0)
+	#else:
+		## Show floating text for insufficient resources
+		#var floating_text = floating_text_scene.instantiate()
+		#add_child(floating_text)
+		#floating_text.position = $Player.position + Vector2(0, -30)
+		#floating_text.set_text("Need " + str(tower_cost) + " gold!")
+		#floating_text.modulate = Color(1, 0, 0)
 
 func update_spawn_interval():
 	# Calculate progress (0 to 1)
@@ -344,3 +375,37 @@ func update_spawn_interval():
 	
 	# Update UI with time and spawn rate
 	update_ui()
+
+func toggle_build_menu():
+	build_menu_visible = !build_menu_visible
+	build_menu_container.visible = build_menu_visible
+
+func place_tower(tower_type: int) -> void:
+	var cost = 10 if tower_type == Tower.TowerType.GUN else 15
+	
+	if resources >= cost and is_instance_valid($Player):
+		# Create new tower
+		var new_tower = tower_scene.instantiate()
+		new_tower.mainRef = self
+		new_tower.tower_type = tower_type
+		add_child(new_tower)
+		new_tower.add_to_group("towers")
+		new_tower.position = $Player.position
+		
+		# Deduct resources
+		resources -= cost
+		update_ui()
+		
+		# Show floating text for tower placement
+		var floating_text = floating_text_scene.instantiate()
+		add_child(floating_text)
+		floating_text.position = $Player.position + Vector2(0, -30)
+		floating_text.set_text("-" + str(cost) + " gold")
+		floating_text.modulate = Color(1, 0, 0)
+	else:
+		# Show floating text for insufficient resources
+		var floating_text = floating_text_scene.instantiate()
+		add_child(floating_text)
+		floating_text.position = $Player.position + Vector2(0, -30)
+		floating_text.set_text("Need " + str(cost) + " gold!")
+		floating_text.modulate = Color(1, 0, 0)

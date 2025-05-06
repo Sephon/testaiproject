@@ -3,6 +3,7 @@ extends Area2D
 var velocity = Vector2.ZERO
 var collision_radius = 4  # Radius for collision detection
 var world_size: Vector2
+var damage = 10
 
 func _ready():	
 	var main = get_tree().get_root().get_node("Main")
