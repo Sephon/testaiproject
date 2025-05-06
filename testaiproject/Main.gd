@@ -311,6 +311,7 @@ func place_tower() -> void:
 		# Create new tower
 		var new_tower = tower_scene.instantiate()
 		add_child(new_tower)
+		new_tower.add_to_group("towers")
 		new_tower.position = $Player.position
 		
 		# Deduct resources

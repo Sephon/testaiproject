@@ -6,7 +6,7 @@ var exploding = false
 var explosion_time = 0.0
 var explosion_duration = 0.3
 var explosion_scene = preload("res://ExplosionEffect.tscn")
-var sound_explode = preload("res://Sounds/explosion.wav")
+var sound_explode = preload("res://Sounds/explosion2.wav")
 var audio_player_explode: AudioStreamPlayer
 
 # Movement behavior variables
@@ -98,10 +98,10 @@ func find_closest_target():
 			current_target = player
 	
 	# Check towers
-	for tower in get_tree().get_nodes_in_group("towers"):
+	var towers = get_tree().get_nodes_in_group("towers")
+	for tower in towers:
 		if is_instance_valid(tower) and not tower.is_queued_for_deletion():			
 			var distance = position.distance_to(tower.position)
-			print("Tower distance is: ", distance)
 			if distance < closest_distance:
 				closest_distance = distance
 				current_target = tower
