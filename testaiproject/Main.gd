@@ -8,6 +8,14 @@ var tower_scene = preload("res://Tower.tscn")
 var coin_sound = preload("res://Sounds/coin.wav")
 const Tower = preload("res://Tower.gd")
 
+# Grid system variables
+var grid_size = 40  # Size of each grid cell
+var grid_lines: Array[Line2D] = []  # Store grid lines
+var grid_visible = false
+var preview_tower: ColorRect  # Preview tower placement
+var selected_tower_type: int = -1  # -1 = none, 0 = gun, 1 = laser
+var grid_container: Node2D  # Container for grid lines
+
 # World size variables
 var world_size = Vector2(2000, 2000)  # Large playing field
 var world_center = Vector2(1000, 1000)  # Center of the world
@@ -80,7 +88,19 @@ func _ready() -> void:
 	camera.position_smoothing_enabled = true
 	camera.position_smoothing_speed = 5.0
 	$Player.add_child(camera)
-		
+	
+	# Initialize grid system
+	grid_container = Node2D.new()
+	add_child(grid_container)
+	create_grid()
+	
+	# Create preview tower
+	preview_tower = ColorRect.new()
+	preview_tower.size = Vector2(grid_size, grid_size)
+	preview_tower.modulate = Color(1, 1, 1, 0.3)  # Semi-transparent white
+	preview_tower.visible = false
+	add_child(preview_tower)
+	
 	# Create HUD container (this will stay fixed on screen)
 	hud_container = CanvasLayer.new()
 	add_child(hud_container)
@@ -148,11 +168,29 @@ func _process(delta: float) -> void:
 		# Handle tower selection when menu is open
 		if build_menu_visible:
 			if Input.is_action_just_pressed("ui_accept") or Input.is_key_pressed(KEY_1):  # 1 key
-				place_tower(Tower.TowerType.GUN)
-				toggle_build_menu()
+				selected_tower_type = Tower.TowerType.GUN
+				#toggle_build_menu()
 			elif Input.is_action_just_pressed("ui_cancel") or Input.is_key_pressed(KEY_2):  # 2 key
-				place_tower(Tower.TowerType.LASER)
-				toggle_build_menu()
+				selected_tower_type = Tower.TowerType.LASER
+				#toggle_build_menu()
+		
+		# Update preview tower position
+		update_preview_tower()
+		
+		
+		# Handle tower placement with left click
+		if selected_tower_type != -1 and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			print("PLACING TOWER")
+			var mouse_pos = get_global_mouse_position()
+			var grid_pos = get_grid_position(mouse_pos)
+			place_tower_at_position(selected_tower_type, grid_pos)
+			selected_tower_type = -1
+			preview_tower.visible = false
+		
+		# Handle canceling tower placement with right click
+		if selected_tower_type != -1 and Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT):
+			selected_tower_type = -1
+			preview_tower.visible = false
 		
 		# Update build menu position to stay at bottom of screen
 		if build_menu_container:
@@ -363,18 +401,34 @@ func update_spawn_interval():
 func toggle_build_menu():
 	build_menu_visible = !build_menu_visible
 	build_menu_container.visible = build_menu_visible
+	
+	# Reset tower selection when closing menu
+	if !build_menu_visible:
+		selected_tower_type = -1
+		preview_tower.visible = false
 
-func place_tower(tower_type: int) -> void:
+func place_tower_at_position(tower_type: int, position: Vector2) -> void:
 	var cost = 10 if tower_type == Tower.TowerType.GUN else 15
 	
-	if resources >= cost and is_instance_valid($Player):
+	if resources >= cost:
+		# Check if position is already occupied
+		for tower in get_tree().get_nodes_in_group("towers"):
+			if tower.position.distance_to(position) < grid_size:
+				# Show floating text for occupied position
+				var floating_text = floating_text_scene.instantiate()
+				add_child(floating_text)
+				floating_text.position = position + Vector2(0, -30)
+				floating_text.set_text("Position occupied!")
+				floating_text.modulate = Color(1, 0, 0)
+				return
+		
 		# Create new tower
 		var new_tower = tower_scene.instantiate()
 		new_tower.mainRef = self
 		new_tower.tower_type = tower_type
 		add_child(new_tower)
 		new_tower.add_to_group("towers")
-		new_tower.position = $Player.position
+		new_tower.position = position
 		
 		# Deduct resources
 		resources -= cost
@@ -383,14 +437,14 @@ func place_tower(tower_type: int) -> void:
 		# Show floating text for tower placement
 		var floating_text = floating_text_scene.instantiate()
 		add_child(floating_text)
-		floating_text.position = $Player.position + Vector2(0, -30)
+		floating_text.position = position + Vector2(0, -30)
 		floating_text.set_text("-" + str(cost) + " gold")
 		floating_text.modulate = Color(1, 0, 0)
 	else:
 		# Show floating text for insufficient resources
 		var floating_text = floating_text_scene.instantiate()
 		add_child(floating_text)
-		floating_text.position = $Player.position + Vector2(0, -30)
+		floating_text.position = position + Vector2(0, -30)
 		floating_text.set_text("Need " + str(cost) + " gold!")
 		floating_text.modulate = Color(1, 0, 0)
 
@@ -407,3 +461,53 @@ func create_menu_stylebox() -> StyleBoxFlat:
 	style.corner_radius_bottom_left = 10
 	style.corner_radius_bottom_right = 10
 	return style
+
+func create_grid() -> void:
+	# Clear existing grid lines
+	for line in grid_lines:
+		line.queue_free()
+	grid_lines.clear()
+	
+	# Calculate number of lines needed
+	var num_horizontal = int(world_size.y / grid_size) + 1
+	var num_vertical = int(world_size.x / grid_size) + 1
+	
+	# Create horizontal lines
+	for i in range(num_horizontal):
+		var line = Line2D.new()
+		line.width = 1
+		line.default_color = Color(1, 1, 1, 0.2)  # Semi-transparent white
+		line.add_point(Vector2(0, i * grid_size))
+		line.add_point(Vector2(world_size.x, i * grid_size))
+		grid_container.add_child(line)
+		grid_lines.append(line)
+	
+	# Create vertical lines
+	for i in range(num_vertical):
+		var line = Line2D.new()
+		line.width = 1
+		line.default_color = Color(1, 1, 1, 0.2)  # Semi-transparent white
+		line.add_point(Vector2(i * grid_size, 0))
+		line.add_point(Vector2(i * grid_size, world_size.y))
+		grid_container.add_child(line)
+		grid_lines.append(line)
+
+func get_grid_position(world_pos: Vector2) -> Vector2:
+	var grid_x = floor(world_pos.x / grid_size) * grid_size + (grid_size /2)
+	var grid_y = floor(world_pos.y / grid_size) * grid_size + (grid_size /2)
+	return Vector2(grid_x, grid_y)
+
+func update_preview_tower() -> void:
+	if selected_tower_type != -1:
+		var mouse_pos = get_global_mouse_position()
+		var grid_pos = get_grid_position(mouse_pos)
+		preview_tower.position = grid_pos - (preview_tower.size / 2)
+		preview_tower.visible = true
+		
+		# Update color based on tower type
+		if selected_tower_type == Tower.TowerType.GUN:
+			preview_tower.color = Color(0.5, 0, 0, 0.3)  # Semi-transparent red
+		else:
+			preview_tower.color = Color(1, 1, 0, 0.3)  # Semi-transparent yellow
+	else:
+		preview_tower.visible = false
