@@ -73,6 +73,11 @@ var build_menu_label: Label
 var build_menu_cooldown = 0.3  # Cooldown in seconds
 var last_build_menu_toggle = 0.0
 
+# Game over screen variables
+var game_over_container: Panel
+var game_over_label: Label
+var game_over_options_label: Label
+
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	# Initialize game objects
@@ -122,6 +127,9 @@ func _ready() -> void:
 	spawn_progress_label.position = Vector2(20, 60)
 	spawn_progress_label.add_theme_font_size_override("font_size", 16)
 	add_child(spawn_progress_label)
+	
+	# Create game over screen
+	create_game_over_screen()
 	
 	# Initialize spawn interval
 	current_spawn_interval = spawn_interval
@@ -176,7 +184,6 @@ func _process(delta: float) -> void:
 		
 		# Update preview tower position
 		update_preview_tower()
-		
 		
 		# Handle tower placement with left click
 		if selected_tower_type != -1 and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
@@ -263,6 +270,13 @@ func _process(delta: float) -> void:
 			if is_instance_valid($Player):
 				$Player.queue_free()
 			player_destroyed = true
+			show_game_over_screen()
+	else:
+		# Handle game over screen input
+		if Input.is_action_just_pressed("ui_accept"):  # Enter key
+			restart_game()
+		elif Input.is_action_just_pressed("ui_cancel"):  # Escape key
+			get_tree().quit()
 
 func get_valid_spawn_position() -> Vector2:
 	var position = Vector2.ZERO
@@ -493,8 +507,9 @@ func create_grid() -> void:
 		grid_lines.append(line)
 
 func get_grid_position(world_pos: Vector2) -> Vector2:
-	var grid_x = floor(world_pos.x / grid_size) * grid_size + (grid_size /2)
-	var grid_y = floor(world_pos.y / grid_size) * grid_size + (grid_size /2)
+	var max_grid = Vector2(world_size.x / grid_size -1, world_size.y / grid_size -1)
+	var grid_x = max(0, min(max_grid.x, floor(world_pos.x / grid_size))) * grid_size + (grid_size /2)
+	var grid_y = max(0, min(max_grid.y, floor(world_pos.y / grid_size))) * grid_size + (grid_size /2)
 	return Vector2(grid_x, grid_y)
 
 func update_preview_tower() -> void:
@@ -511,3 +526,117 @@ func update_preview_tower() -> void:
 			preview_tower.color = Color(1, 1, 0, 0.3)  # Semi-transparent yellow
 	else:
 		preview_tower.visible = false
+
+func create_game_over_screen() -> void:
+	# Create container panel
+	game_over_container = Panel.new()
+	game_over_container.visible = false
+	game_over_container.add_theme_stylebox_override("panel", create_game_over_stylebox())
+	hud_container.add_child(game_over_container)
+	
+	# Create game over label
+	game_over_label = Label.new()
+	game_over_label.add_theme_font_size_override("font_size", 48)
+	game_over_label.text = "GAME OVER"
+	game_over_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	game_over_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	game_over_label.add_theme_color_override("font_color", Color(0.8, 0, 0))  # Dark red
+	game_over_container.add_child(game_over_label)
+	
+	# Create options label
+	game_over_options_label = Label.new()
+	game_over_options_label.add_theme_font_size_override("font_size", 24)
+	game_over_options_label.text = "Enter - Try Again\nEsc - Quit Game"
+	game_over_options_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	game_over_options_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	game_over_container.add_child(game_over_options_label)
+
+func create_game_over_stylebox() -> StyleBoxFlat:
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.1, 0.1, 0.1, 0.9)  # Dark background with high opacity
+	style.border_color = Color(0.8, 0, 0, 0.9)  # Red border
+	style.border_width_left = 3
+	style.border_width_top = 3
+	style.border_width_right = 3
+	style.border_width_bottom = 3
+	style.corner_radius_top_left = 15
+	style.corner_radius_top_right = 15
+	style.corner_radius_bottom_left = 15
+	style.corner_radius_bottom_right = 15
+	return style
+
+func show_game_over_screen() -> void:
+	var viewport_size = get_viewport().get_visible_rect().size
+	game_over_container.size = Vector2(400, 300)  # Fixed size for the game over screen
+	game_over_container.position = Vector2(
+		(viewport_size.x - game_over_container.size.x) / 2,  # Center horizontally
+		(viewport_size.y - game_over_container.size.y) / 2   # Center vertically
+	)
+	
+	# Position the labels
+	game_over_label.size = Vector2(game_over_container.size.x, 100)
+	game_over_label.position = Vector2(0, 50)
+	
+	game_over_options_label.size = Vector2(game_over_container.size.x, 100)
+	game_over_options_label.position = Vector2(0, 150)
+	
+	game_over_container.visible = true
+
+func restart_game() -> void:
+	# Reset game state
+	player_dead = false
+	player_destroyed = false
+	player_explosion_time = 0.0
+	game_time = 0.0
+	kills = 0
+	resources = 100
+	spawn_timer = 0.0
+	resource_spawn_timer = 0.0
+	current_spawn_interval = spawn_interval
+	
+	# Hide game over screen
+	game_over_container.visible = false
+	
+	# Clear all enemies and towers
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		enemy.queue_free()
+	for tower in get_tree().get_nodes_in_group("towers"):
+		tower.queue_free()
+	for resource_node in get_tree().get_nodes_in_group("resource_nodes"):
+		resource_node.queue_free()
+	
+	# Create new player
+	var new_player = Area2D.new()
+	new_player.name = "Player"
+	add_child(new_player)
+	
+	# Add player components
+	var player_rect = ColorRect.new()
+	player_rect.offset_left = -20.0
+	player_rect.offset_top = -20.0
+	player_rect.offset_right = 20.0
+	player_rect.offset_bottom = 20.0
+	player_rect.color = Color(0, 1, 0, 1)
+	new_player.add_child(player_rect)
+	
+	var collision_shape = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(40, 40)
+	collision_shape.shape = shape
+	new_player.add_child(collision_shape)
+	
+	# Set player position and add camera
+	new_player.position = world_center
+	if is_instance_valid(camera):
+		camera.reparent(new_player)
+	else:
+		print("Camera instance is invalid. Creating a new camera.")
+		camera = Camera2D.new()
+		new_player.add_child(camera)
+		
+	
+	# Connect player signals
+	new_player.body_entered.connect(_on_player_body_entered)
+	
+	# Update UI
+	update_ui()
