@@ -97,6 +97,7 @@ var biome_noise
 
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
+	randomize() # Ensure different seed each run
 	# Initialize game objects
 	$Player.position = world_center  # Start player in center of world
 	
@@ -186,11 +187,17 @@ func _ready() -> void:
 	
 	# Initialize biome noise
 	biome_noise = FastNoiseLite.new()
-	biome_noise.seed = 12345
+	biome_noise.seed = randi()
 	biome_noise.frequency = 1.0 / 64.0  # period = 64.0
 	biome_noise.fractal_octaves = 4
 	biome_noise.fractal_lacunarity = 2.0
 	biome_noise.fractal_gain = 0.5
+	
+	# Add a sprite to the player
+	var player_sprite = Sprite2D.new()
+	player_sprite.texture = load("res://Sprites/Player.png")
+	player_sprite.z_index = 1
+	$Player.add_child(player_sprite)
 	
 	print("Game initialized")
 
@@ -663,6 +670,12 @@ func restart_game() -> void:
 	var new_player = Area2D.new()
 	new_player.name = "Player"
 	add_child(new_player)
+	
+	# Add player sprite
+	var player_sprite = Sprite2D.new()
+	player_sprite.texture = load("res://Sprites/Player.png")
+	player_sprite.z_index = 1
+	new_player.add_child(player_sprite)
 	
 	# Add player components
 	var player_rect = ColorRect.new()

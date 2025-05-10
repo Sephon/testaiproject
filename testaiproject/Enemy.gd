@@ -41,10 +41,11 @@ func _ready():
 	# Initialize random wander angle
 	wander_angle = randf() * TAU  # Random angle between 0 and 2π
 	
-	var rect = ColorRect.new()
-	rect.size = Vector2(40,40)
-	rect.color = Color(1,1,1,1)
-	add_child(rect)
+	# Replace ColorRect with Sprite2D
+	var sprite = Sprite2D.new()
+	sprite.texture = load("res://Sprites/Spider.png")
+	sprite.z_index = 1
+	add_child(sprite)
 	
 	# Setup audio player for gunshot sound
 	audio_player_explode = AudioStreamPlayer.new()
