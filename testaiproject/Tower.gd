@@ -15,7 +15,8 @@ var shot_cooldown = 0
 var damage = 0
 var gunshot_sound = preload("res://Sounds/gunshot.mp3")
 var laser_sound = preload("res://Sounds/laser_shot.mp3")
-var texture_path := "res://Sprites/Turret.png"
+var gunturret_texture_path := "res://Sprites/Turret.png"
+var laserturret_texture_path := "res://Sprites/LaserTurret.png"
 var sprite: Sprite2D
 
 # Upgrade variables
@@ -77,9 +78,11 @@ func _init(type: TowerType = TowerType.GUN):
 			damage = 20
 
 func _ready():
-	var texture = load(texture_path)
 	sprite = Sprite2D.new()
-	sprite.texture = texture
+	if tower_type == TowerType.GUN:		
+		sprite.texture = load(gunturret_texture_path)
+	elif tower_type == TowerType.LASER:
+		sprite.texture = load(laserturret_texture_path)		
 	sprite.centered = true  # viktigt för rotation runt mitten
 	add_child(sprite)
 
