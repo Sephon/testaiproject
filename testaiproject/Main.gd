@@ -23,6 +23,10 @@ var world_center = Vector2(1000, 1000)  # Center of the world
 # Camera variables
 var camera: Camera2D
 var camera_smoothing = 0.1  # Camera smoothing factor
+var camera_zoom = Vector2.ONE  # Current camera zoom level
+var min_zoom = Vector2(0.5, 0.5)  # Minimum zoom level
+var max_zoom = Vector2(2.0, 2.0)  # Maximum zoom level
+var zoom_speed = 0.1  # How fast to zoom in/out
 
 # Tower placement variables
 var tower_cost = 10
@@ -92,6 +96,7 @@ func _ready() -> void:
 	camera = Camera2D.new()
 	camera.position_smoothing_enabled = true
 	camera.position_smoothing_speed = 5.0
+	camera.zoom = camera_zoom  # Set initial zoom
 	$Player.add_child(camera)
 	
 	# Initialize grid system
@@ -595,6 +600,7 @@ func restart_game() -> void:
 	spawn_timer = 0.0
 	resource_spawn_timer = 0.0
 	current_spawn_interval = spawn_interval
+	camera_zoom = Vector2.ONE  # Reset zoom level
 	
 	# Hide game over screen
 	game_over_container.visible = false
@@ -631,14 +637,28 @@ func restart_game() -> void:
 	new_player.position = world_center
 	if is_instance_valid(camera):
 		camera.reparent(new_player)
+		camera.zoom = camera_zoom  # Restore zoom level
 	else:
 		print("Camera instance is invalid. Creating a new camera.")
 		camera = Camera2D.new()
+		camera.zoom = camera_zoom  # Set zoom level for new camera
 		new_player.add_child(camera)
-		
 	
 	# Connect player signals
 	new_player.body_entered.connect(_on_player_body_entered)
 	
 	# Update UI
 	update_ui()
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			# Zoom in
+			camera_zoom = camera_zoom * (1.0 - zoom_speed)
+			camera_zoom = camera_zoom.clamp(min_zoom, max_zoom)
+			camera.zoom = camera_zoom
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			# Zoom out
+			camera_zoom = camera_zoom * (1.0 + zoom_speed)
+			camera_zoom = camera_zoom.clamp(min_zoom, max_zoom)
+			camera.zoom = camera_zoom
