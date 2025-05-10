@@ -21,6 +21,15 @@ var base_grid_line_width = 1.0  # Base width of grid lines
 var world_size = Vector2(20000, 20000)  # Large playing field
 var world_center = world_size / 2  # Center of the world
 
+# Tilemap variables
+var tile_size = 64  # Size of each tile in pixels
+var chunk_size = 16  # Number of tiles per chunk (16x16 tiles)
+var loaded_chunks = {}  # Dictionary to store loaded chunks
+var chunk_container: Node2D  # Container for all chunks
+var tilemap_texture: Texture2D  # The spritesheet texture
+var tiles_per_row = 8  # Number of tiles per row in spritesheet (550/64 ≈ 8)
+var total_tiles = 64  # Total number of tiles in spritesheet
+
 # Camera variables
 var camera: Camera2D
 var camera_smoothing = 0.1  # Camera smoothing factor
@@ -87,6 +96,13 @@ var game_over_options_label: Label
 func _ready() -> void:
 	# Initialize game objects
 	$Player.position = world_center  # Start player in center of world
+	
+	# Load tilemap texture
+	tilemap_texture = load("res://TileSheet/medievalRTS_spritesheet.png")
+	
+	# Create chunk container
+	chunk_container = Node2D.new()
+	add_child(chunk_container)
 	
 	# Setup audio player for coin sound
 	coin_audio_player = AudioStreamPlayer.new()
@@ -171,6 +187,9 @@ func _process(delta: float) -> void:
 		
 		# Update spawn interval based on time
 		update_spawn_interval()
+		
+		# Update visible chunks based on camera position
+		update_visible_chunks()
 		
 		grid_container.visible = build_menu_visible
 		
@@ -594,6 +613,11 @@ func show_game_over_screen() -> void:
 	game_over_container.visible = true
 
 func restart_game() -> void:
+	# Clear all chunks
+	for chunk in loaded_chunks.values():
+		chunk.queue_free()
+	loaded_chunks.clear()
+	
 	# Reset game state
 	player_dead = false
 	player_destroyed = false
@@ -685,3 +709,85 @@ func update_grid_appearance() -> void:
 	for line in grid_lines:
 		line.width = line_width
 		line.default_color.a = opacity
+
+func update_visible_chunks() -> void:
+	if not is_instance_valid($Player):
+		return
+		
+	var player_pos = $Player.position
+	var chunk_x = floor(player_pos.x / (chunk_size * tile_size))
+	var chunk_y = floor(player_pos.y / (chunk_size * tile_size))
+	
+	# Calculate visible chunk range based on camera zoom
+	var visible_range = ceil(2.0 / camera_zoom.x)  # Adjust range based on zoom level
+	
+	# Unload chunks that are too far away
+	var chunks_to_remove = []
+	for chunk_key in loaded_chunks:
+		var chunk_pos = chunk_key.split(",")
+		var cx = int(chunk_pos[0])
+		var cy = int(chunk_pos[1])
+		
+		if abs(cx - chunk_x) > visible_range or abs(cy - chunk_y) > visible_range:
+			chunks_to_remove.append(chunk_key)
+	
+	for chunk_key in chunks_to_remove:
+		loaded_chunks[chunk_key].queue_free()
+		loaded_chunks.erase(chunk_key)
+	
+	# Load new chunks in visible range
+	for x in range(chunk_x - visible_range, chunk_x + visible_range + 1):
+		for y in range(chunk_y - visible_range, chunk_y + visible_range + 1):
+			var chunk_key = str(x) + "," + str(y)
+			if not loaded_chunks.has(chunk_key):
+				create_chunk(x, y)
+
+func create_chunk(chunk_x: int, chunk_y: int) -> void:
+	var chunk = Node2D.new()
+	chunk_container.add_child(chunk)
+	
+	# Calculate chunk position
+	var chunk_pos = Vector2(
+		chunk_x * chunk_size * tile_size,
+		chunk_y * chunk_size * tile_size
+	)
+	chunk.position = chunk_pos
+	
+	# Create tiles for this chunk
+	for x in range(chunk_size):
+		for y in range(chunk_size):
+			# Calculate world position for this tile
+			var tile_pos = Vector2(x * tile_size, y * tile_size)
+			
+			# Generate a deterministic tile index based on position
+			var tile_index = get_tile_index(chunk_x * chunk_size + x, chunk_y * chunk_size + y)
+			
+			# Create sprite for this tile
+			var sprite = Sprite2D.new()
+			sprite.texture = tilemap_texture
+			sprite.region_enabled = true
+			sprite.region_rect = get_tile_region(tile_index)
+			sprite.position = tile_pos
+			chunk.add_child(sprite)
+	
+	# Store chunk reference
+	loaded_chunks[str(chunk_x) + "," + str(chunk_y)] = chunk
+
+func get_tile_index(x: int, y: int) -> int:
+	# Use a simple hash function to generate deterministic tile indices
+	var hash = (x * 73856093) ^ (y * 19349663)
+	return abs(hash) % total_tiles
+
+func get_tile_region(tile_index: int) -> Rect2:
+	var row = tile_index / tiles_per_row
+	var col = tile_index % tiles_per_row
+	
+	# Calculate region in the spritesheet
+	var region = Rect2(
+		col * tile_size,
+		row * tile_size,
+		tile_size,
+		tile_size
+	)
+	
+	return region
