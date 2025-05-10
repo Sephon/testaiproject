@@ -38,10 +38,10 @@ var hud_container: CanvasLayer  # New container for HUD elements
 # Spawn variables
 var spawn_timer = 0.0
 var spawn_interval = 5.0  # Initial spawn interval (5 seconds)
-var min_spawn_interval = 0.5  # Minimum spawn interval (2 enemies per second)
-var spawn_interval_decrease_rate = 0.5  # How much to decrease interval per minute
+var min_spawn_interval = 0.1  # Minimum spawn interval (2 enemies per second)
+var spawn_interval_decrease_rate = 2  # How much to decrease interval per minute
 var game_time = 0.0  # Total time elapsed
-var max_game_time = 600.0  # 10 minutes in seconds
+var max_game_time = 300.0 # Time until maximum spawn rate
 
 # Spawn progression variables
 var current_spawn_interval: float
@@ -165,6 +165,8 @@ func _process(delta: float) -> void:
 		
 		# Update spawn interval based on time
 		update_spawn_interval()
+		
+		grid_container.visible = build_menu_visible
 		
 		# Handle build menu with cooldown
 		if Input.is_action_just_pressed("ui_select") or Input.is_key_pressed(KEY_B):  # B key

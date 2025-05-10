@@ -15,12 +15,16 @@ var shot_cooldown = 0
 var damage = 0
 var gunshot_sound = preload("res://Sounds/gunshot.mp3")
 var laser_sound = preload("res://Sounds/laser_shot.mp3")
+var texture_path := "res://Sprites/Turret.png"
+var sprite: Sprite2D
 
 # Upgrade variables
 var upgrade_cost = 10
 var upgrade_multiplier = 1.1  # How much stats increase when upgraded
 var tower_level = 1
 
+var turret_turn_speed = 3.0  # Radians per second (adjust as needed)
+var aim_threshold = 2 #degrees in which to fire
 # Tower health variables
 var health = 100
 var max_health = 100
@@ -73,6 +77,12 @@ func _init(type: TowerType = TowerType.GUN):
 			damage = 20
 
 func _ready():
+	var texture = load(texture_path)
+	sprite = Sprite2D.new()
+	sprite.texture = texture
+	sprite.centered = true  # viktigt för rotation runt mitten
+	add_child(sprite)
+
 	# Create upgrade borders first (so they're at the bottom)
 	for i in range(max_border_layers):
 		var border = ColorRect.new()
@@ -97,16 +107,6 @@ func _ready():
 	control = $Control
 	control.mouse_filter = Control.MOUSE_FILTER_STOP  # Ensure control captures mouse events
 	
-	# Setup a box in the box for visual style, a black center box
-	var head = ColorRect.new()
-	if tower_type == TowerType.GUN:
-		head.color = Color.DARK_RED
-	elif tower_type == TowerType.LASER:
-		head.color = Color.YELLOW
-	head.size = Vector2(10,10)
-	head.position = ($ColorRect.size - head.size) / 2
-	$ColorRect.add_child(head)
-
 	# Create laser beam for laser tower
 	if tower_type == TowerType.LASER:
 		laser_beam = Line2D.new()
@@ -143,7 +143,6 @@ func _ready():
 	health_bar_fill.color = Color(0, 1, 0, 0.8)
 	health_bar.add_child(health_bar_fill)
 	
-	# Update initial health bar
 	update_health_bar()
 	
 	# Setup audio player for gunshot sound
@@ -154,7 +153,7 @@ func _ready():
 		fire_audio_player.stream = gunshot_sound
 		
 	add_child(fire_audio_player)
-
+	
 func update_popup_menu():
 	popup_menu.clear()
 	var tower_name = "Gun Tower" if tower_type == TowerType.GUN else "Laser Tower"
@@ -166,6 +165,10 @@ func update_popup_menu():
 		popup_menu.set_item_disabled(1, true)
 
 func _process(delta):
+	# Keep health bar upright and in position
+	health_bar.global_position = global_position + Vector2(-25, -30)  # Adjust Y offset as needed
+	health_bar.rotation = -rotation
+	
 	if exploding:
 		# Handle explosion effect
 		explosion_time += delta
@@ -192,19 +195,20 @@ func _process(delta):
 	
 	# Tower shooting with cooldown
 	var current_time = Time.get_ticks_msec() / 1000.0
-	if (current_time - last_shot_time) >= shot_cooldown:
-		# Find closest enemy in range
-		var closest_enemy = null
-		var closest_distance = tower_range
+	
+	var closest = get_closest_enemy(tower_range +100 )
+	if closest:
+		var target_dir = (closest.global_position - global_position).normalized()
+		var target_angle = target_dir.angle()
+		var current_angle = global_rotation
+		#var current_angle = rotation
+		rotation = lerp_angle(current_angle, target_angle, turret_turn_speed * delta)
+		#look_at(closest.global_position)	
+	
+	if (current_time - last_shot_time) >= shot_cooldown:		
+		var closest_enemy = get_closest_enemy(tower_range)
 		
-		for enemy in get_tree().get_nodes_in_group("enemies"):
-			if is_instance_valid(enemy):
-				var distance = position.distance_to(enemy.position)
-				if distance < closest_distance:
-					closest_enemy = enemy
-					closest_distance = distance
-		
-		if closest_enemy:
+		if closest_enemy and is_aimed_at_target(closest_enemy.position):
 			shoot_at_enemy(closest_enemy)
 			last_shot_time = current_time
 	
@@ -218,6 +222,30 @@ func _process(delta):
 		
 		if not viewport_rect.intersects(popup_rect):
 			popup_menu.hide()
+
+func angular_distance(a, b):
+	# Shortest distance between two angles, considering wrap-around
+	return wrapf(b - a + PI, -PI, PI)
+
+func is_aimed_at_target(target_position: Vector2) -> bool:
+	var target_dir = (target_position - global_position).normalized()
+	var target_angle = target_dir.angle() - PI / 2
+	var angle_diff = abs(angular_distance(rotation, target_angle))
+	print("angle diff: ", angle_diff)
+	return angle_diff < aim_threshold
+	
+func get_closest_enemy(range):
+	# Find closest enemy in range
+	var closest_enemy = null
+	var closest_distance = range
+
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+			if is_instance_valid(enemy):
+				var distance = position.distance_to(enemy.position)
+				if distance < closest_distance:
+					closest_enemy = enemy
+					closest_distance = distance					
+	return closest_enemy
 
 func take_damage(amount: int, attacker = null):
 	if exploding:
@@ -268,8 +296,13 @@ func shoot_at_enemy(target_enemy):
 	else:  # Laser Tower
 		# Create laser beam effect
 		laser_beam.clear_points()
+		# Convert world positions to laser_beam's local space
+		var start_pos = laser_beam.to_local(global_position)
+		var end_pos = laser_beam.to_local(target_enemy.global_position)
 		laser_beam.add_point(Vector2.ZERO)  # Start at tower center
-		laser_beam.add_point(target_enemy.position - position)  # End at enemy
+		#laser_beam.add_point(target_enemy.position - position)  # End at enemy
+		laser_beam.add_point(end_pos)  # End at enemy
+		
 		
 		# Reset laser beam properties
 		laser_beam.default_color = laser_color

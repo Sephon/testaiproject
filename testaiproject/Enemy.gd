@@ -1,6 +1,6 @@
 extends Area2D
 
-var speed = 250
+var speed = 50
 var collision_radius = 15
 var exploding = false
 var explosion_time = 0.0
@@ -36,10 +36,15 @@ var attack_cooldown = 1.0  # Seconds between attacks
 var last_attack_time = 0.0
 var current_target = null
 
-func _ready():
+func _ready():	
 	body_entered.connect(_on_body_entered)
 	# Initialize random wander angle
 	wander_angle = randf() * TAU  # Random angle between 0 and 2π
+	
+	var rect = ColorRect.new()
+	rect.size = Vector2(40,40)
+	rect.color = Color(1,1,1,1)
+	add_child(rect)
 	
 	# Setup audio player for gunshot sound
 	audio_player_explode = AudioStreamPlayer.new()
@@ -70,7 +75,7 @@ func _process(delta):
 	if not exploding:
 		# Find closest target (player or tower)
 		find_closest_target()
-		
+
 		if current_target and is_instance_valid(current_target):
 			# Calculate base direction to target
 			var to_target = (current_target.position - position).normalized()
@@ -96,6 +101,9 @@ func _process(delta):
 			
 			# Check if we're close enough to attack
 			var distance = position.distance_to(current_target.position)
+			if distance < 50:
+				look_at(current_target.global_position)
+				
 			if distance < 30:  # Attack range
 				attack_target()
 	else:
@@ -114,7 +122,7 @@ func _process(delta):
 			if main:
 				main.enemy_killed()
 			queue_free()
-
+	
 func find_closest_target():
 	var closest_distance = INF
 	current_target = null
