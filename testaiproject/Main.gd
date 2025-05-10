@@ -92,6 +92,9 @@ var game_over_container: Panel
 var game_over_label: Label
 var game_over_options_label: Label
 
+# Use FastNoiseLite for Godot 4
+var biome_noise
+
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	# Initialize game objects
@@ -102,6 +105,7 @@ func _ready() -> void:
 	
 	# Create chunk container
 	chunk_container = Node2D.new()
+	chunk_container.z_index = 0
 	add_child(chunk_container)
 	
 	# Setup audio player for coin sound
@@ -114,10 +118,12 @@ func _ready() -> void:
 	camera.position_smoothing_enabled = true
 	camera.position_smoothing_speed = 5.0
 	camera.zoom = camera_zoom  # Set initial zoom
+	$Player.z_index = 1
 	$Player.add_child(camera)
 	
 	# Initialize grid system
 	grid_container = Node2D.new()
+	grid_container.z_index = 2
 	add_child(grid_container)
 	create_grid()
 	
@@ -126,6 +132,7 @@ func _ready() -> void:
 	preview_tower.size = Vector2(grid_size, grid_size)
 	preview_tower.modulate = Color(1, 1, 1, 0.3)  # Semi-transparent white
 	preview_tower.visible = false
+	preview_tower.z_index = 3
 	add_child(preview_tower)
 	
 	# Create HUD container (this will stay fixed on screen)
@@ -176,6 +183,14 @@ func _ready() -> void:
 	# Center the label in the panel
 	build_menu_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	build_menu_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	
+	# Initialize biome noise
+	biome_noise = FastNoiseLite.new()
+	biome_noise.seed = 12345
+	biome_noise.frequency = 1.0 / 64.0  # period = 64.0
+	biome_noise.fractal_octaves = 4
+	biome_noise.fractal_lacunarity = 2.0
+	biome_noise.fractal_gain = 0.5
 	
 	print("Game initialized")
 
@@ -374,6 +389,7 @@ func spawn_enemy():
 	add_child(new_enemy)
 	new_enemy.position = get_valid_spawn_position()
 	new_enemy.add_to_group("enemies")
+	new_enemy.z_index = 1
 	
 	# Create floating text at player position
 	var floating_text = floating_text_scene.instantiate()
@@ -391,6 +407,7 @@ func spawn_resource_node():
 		add_child(new_node)
 		new_node.position = get_valid_resource_position()
 		new_node.add_to_group("resource_nodes")
+		new_node.z_index = 1
 
 func add_resources(type: String, amount: int):
 	resources += amount
@@ -470,6 +487,7 @@ func place_tower_at_position(tower_type: int, position: Vector2) -> void:
 		add_child(new_tower)
 		new_tower.add_to_group("towers")
 		new_tower.position = position
+		new_tower.z_index = 1
 		
 		# Deduct resources
 		resources -= cost
@@ -744,6 +762,7 @@ func update_visible_chunks() -> void:
 
 func create_chunk(chunk_x: int, chunk_y: int) -> void:
 	var chunk = Node2D.new()
+	chunk.z_index = 0
 	chunk_container.add_child(chunk)
 	
 	# Calculate chunk position
@@ -753,30 +772,114 @@ func create_chunk(chunk_x: int, chunk_y: int) -> void:
 	)
 	chunk.position = chunk_pos
 	
-	# Create tiles for this chunk
 	for x in range(chunk_size):
 		for y in range(chunk_size):
-			# Calculate world position for this tile
+			var world_x = chunk_x * chunk_size + x
+			var world_y = chunk_y * chunk_size + y
+			var tile_type = get_biome_tile(world_x, world_y)
+			var tile_index
+			if tile_type == TILE_ROAD:
+				var road_tile = get_road_tile(world_x, world_y)
+				tile_type = TILE_ROAD
+				tile_index = road_tile
+			elif tile_type == TILE_FOREST:
+				tile_index = get_forest_tile(world_x, world_y)
+			elif tile_type == TILE_PLAIN:
+				tile_index = get_plain_tile(world_x, world_y)
+			elif tile_type == TILE_WATER:
+				tile_index = get_water_tile(world_x, world_y)
+			else:
+				tile_index = get_plain_tile(world_x, world_y)
 			var tile_pos = Vector2(x * tile_size, y * tile_size)
-			
-			# Generate a deterministic tile index based on position
-			var tile_index = get_tile_index(chunk_x * chunk_size + x, chunk_y * chunk_size + y)
-			
-			# Create sprite for this tile
 			var sprite = Sprite2D.new()
 			sprite.texture = tilemap_texture
 			sprite.region_enabled = true
 			sprite.region_rect = get_tile_region(tile_index)
 			sprite.position = tile_pos
+			sprite.z_index = 0
 			chunk.add_child(sprite)
-	
-	# Store chunk reference
 	loaded_chunks[str(chunk_x) + "," + str(chunk_y)] = chunk
 
-func get_tile_index(x: int, y: int) -> int:
-	# Use a simple hash function to generate deterministic tile indices
-	var hash = (x * 73856093) ^ (y * 19349663)
-	return abs(hash) % total_tiles
+# --- Map Generation Ruleset ---
+const TILE_PLAIN = 0
+const TILE_WATER = 1
+const TILE_FOREST = 2
+const TILE_ROAD = 3
+
+func get_biome_tile(x: int, y: int) -> int:
+	var n = biome_noise.get_noise_2d(x, y)
+	if n < -0.25:
+		return TILE_WATER
+	elif n < 0.1:
+		return TILE_PLAIN
+	elif n < 0.35:
+		return TILE_FOREST
+	else:
+		return TILE_PLAIN
+	# Road overlay
+	if is_road(x, y):
+		return TILE_ROAD
+	return TILE_PLAIN
+
+# --- Road Auto-Tiling ---
+# Road tile indices (based on your description)
+# 1x1: T-junction NWS (tile 11)
+# 1x2: vertical N-S (tile 12)
+# 1x3: corner ES (tile 13)
+# ... (add more as needed)
+# We'll use a dictionary for road tile selection
+var road_tile_dict = {
+	"1001": 11, # NWS
+	"1010": 12, # NS
+	"0011": 13, # ES
+	"1100": 14, # NW
+	"0110": 15, # NE
+	"0101": 16, # NS
+	"1110": 17, # NWE
+	"0111": 18, # NES
+	"1011": 19, # NWS
+	"1111": 20, # 4-way
+	"0001": 21, # S only
+	"0010": 22, # E only
+	"0100": 23, # N only
+	"1000": 24, # W only
+}
+
+func get_road_tile(x: int, y: int) -> int:
+	# Check neighbors: N, E, S, W
+	var n = is_road(x, y-1) or get_biome_tile(x, y-1) == TILE_ROAD
+	var e = is_road(x+1, y) or get_biome_tile(x+1, y) == TILE_ROAD
+	var s = is_road(x, y+1) or get_biome_tile(x, y+1) == TILE_ROAD
+	var w = is_road(x-1, y) or get_biome_tile(x-1, y) == TILE_ROAD
+	var key = str(int(n)) + str(int(e)) + str(int(s)) + str(int(w))
+	if road_tile_dict.has(key):
+		return road_tile_dict[key]
+	return 12 # default to vertical
+
+# --- Forest Tiles ---
+func get_forest_tile(x: int, y: int) -> int:
+	# Use only forest tiles: 34, 36, 37, 45, 47, 29, 22
+	var forest_tiles = [34, 36, 41, 44, 52, 60, 60]
+	return forest_tiles[(x * 3 + y) % forest_tiles.size()]
+
+# --- Plain Tiles ---
+func get_plain_tile(x: int, y: int) -> int:
+	# Use only plain tile: 31
+	return 58
+
+# --- Water Tiles ---
+func get_water_tile(x: int, y: int) -> int:
+	# Use only water tiles: 16, 25, 33
+	var water_tiles = [35, 37]
+	return water_tiles[(x * 2 + y) % water_tiles.size()]
+
+# --- Road Placement ---
+func is_road(x: int, y: int) -> bool:
+	# Example: create a main road and some branches
+	if x % 40 == 20 or y % 40 == 20:
+		return true
+	# Add more logic for branches if desired
+	return false
 
 func get_tile_region(tile_index: int) -> Rect2:
 	var row = tile_index / tiles_per_row
