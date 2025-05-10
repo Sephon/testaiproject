@@ -15,10 +15,11 @@ var grid_visible = false
 var preview_tower: ColorRect  # Preview tower placement
 var selected_tower_type: int = -1  # -1 = none, 0 = gun, 1 = laser
 var grid_container: Node2D  # Container for grid lines
+var base_grid_line_width = 1.0  # Base width of grid lines
 
 # World size variables
-var world_size = Vector2(2000, 2000)  # Large playing field
-var world_center = Vector2(1000, 1000)  # Center of the world
+var world_size = Vector2(20000, 20000)  # Large playing field
+var world_center = world_size / 2  # Center of the world
 
 # Camera variables
 var camera: Camera2D
@@ -496,7 +497,7 @@ func create_grid() -> void:
 	# Create horizontal lines
 	for i in range(num_horizontal):
 		var line = Line2D.new()
-		line.width = 1
+		line.width = base_grid_line_width
 		line.default_color = Color(1, 1, 1, 0.2)  # Semi-transparent white
 		line.add_point(Vector2(0, i * grid_size))
 		line.add_point(Vector2(world_size.x, i * grid_size))
@@ -506,12 +507,15 @@ func create_grid() -> void:
 	# Create vertical lines
 	for i in range(num_vertical):
 		var line = Line2D.new()
-		line.width = 1
+		line.width = base_grid_line_width
 		line.default_color = Color(1, 1, 1, 0.2)  # Semi-transparent white
 		line.add_point(Vector2(i * grid_size, 0))
 		line.add_point(Vector2(i * grid_size, world_size.y))
 		grid_container.add_child(line)
 		grid_lines.append(line)
+	
+	# Initial grid appearance update
+	update_grid_appearance()
 
 func get_grid_position(world_pos: Vector2) -> Vector2:
 	var max_grid = Vector2(world_size.x / grid_size -1, world_size.y / grid_size -1)
@@ -657,8 +661,27 @@ func _input(event: InputEvent) -> void:
 			camera_zoom = camera_zoom * (1.0 - zoom_speed)
 			camera_zoom = camera_zoom.clamp(min_zoom, max_zoom)
 			camera.zoom = camera_zoom
+			update_grid_appearance()  # Update grid when zooming
 		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			# Zoom out
 			camera_zoom = camera_zoom * (1.0 + zoom_speed)
 			camera_zoom = camera_zoom.clamp(min_zoom, max_zoom)
 			camera.zoom = camera_zoom
+			update_grid_appearance()  # Update grid when zooming
+
+func update_grid_appearance() -> void:
+	# Calculate line width based on zoom level
+	var zoom_factor = 1.0 / camera_zoom.x  # Use x component since we maintain uniform zoom
+	var line_width = base_grid_line_width * zoom_factor
+	
+	# Calculate opacity based on zoom level
+	var opacity = 0.2  # Base opacity
+	if zoom_factor < 0.5:  # When zoomed out far
+		opacity = 0.1
+	elif zoom_factor > 1.5:  # When zoomed in close
+		opacity = 0.3
+	
+	# Update all grid lines
+	for line in grid_lines:
+		line.width = line_width
+		line.default_color.a = opacity
