@@ -17,6 +17,9 @@ var selected_tower_type: int = -1  # -1 = none, 0 = gun, 1 = laser
 var grid_container: Node2D  # Container for grid lines
 var base_grid_line_width = 1.0  # Base width of grid lines
 
+# Tile tracking system
+var tile_data := {}  # Dictionary to store tile types {"x,y": TILE_TYPE}
+
 # World size variables
 var world_size = Vector2(20000, 20000)  # Large playing field
 var world_center = world_size / 2  # Center of the world
@@ -95,6 +98,9 @@ var game_over_options_label: Label
 # Use FastNoiseLite for Godot 4
 var biome_noise
 
+var astar_grid_size = 40  # Same as grid_size
+var astar_search_radius = 20  # Number of tiles in each direction for local pathfinding
+
 # Called when the node enters the scene tree for the first time.
 func _ready() -> void:
 	randomize() # Ensure different seed each run
@@ -131,7 +137,7 @@ func _ready() -> void:
 	# Create preview tower
 	preview_tower = ColorRect.new()
 	preview_tower.size = Vector2(grid_size, grid_size)
-	preview_tower.modulate = Color(1, 1, 1, 0.3)  # Semi-transparent white
+	#preview_tower.modulate = Color(1, 1, 1, 0.3)  # Semi-transparent white
 	preview_tower.visible = false
 	preview_tower.z_index = 3
 	add_child(preview_tower)
@@ -293,7 +299,12 @@ func _process(delta: float) -> void:
 				new_position.x = clamp(new_position.x, margin, world_size.x - margin)
 				new_position.y = clamp(new_position.y, margin, world_size.y - margin)
 				
-				$Player.position = new_position
+				var grid_x = int((new_position.x - grid_size / 2) / grid_size)
+				var grid_y = int((new_position.y - grid_size / 2) / grid_size)
+				if not is_blocked_tile(grid_x, grid_y):
+					$Player.position = new_position
+				else:
+					print("Blocked by tile")
 	
 	if not player_dead:
 		# Check for enemies touching player
@@ -330,66 +341,38 @@ func _process(delta: float) -> void:
 func get_valid_spawn_position() -> Vector2:
 	var position = Vector2.ZERO
 	var margin = 100  # Distance from world edges
-	
-	# Randomly choose which side to spawn from (0: top, 1: right, 2: bottom, 3: left)
-	var side = randi() % 4
-	
-	match side:
-		0:  # Top
-			position = Vector2(
-				randf_range(margin, world_size.x - margin),
-				margin
-			)
-		1:  # Right
-			position = Vector2(
-				world_size.x - margin,
-				randf_range(margin, world_size.y - margin)
-			)
-		2:  # Bottom
-			position = Vector2(
-				randf_range(margin, world_size.x - margin),
-				world_size.y - margin
-			)
-		3:  # Left
-			position = Vector2(
-				margin,
-				randf_range(margin, world_size.y - margin)
-			)
-	
-	return position
+	var max_attempts = 20
+	for i in range(max_attempts):
+		# Randomly choose which side to spawn from (0: top, 1: right, 2: bottom, 3: left)
+		var side = randi() % 4
+		match side:
+			0:
+				position = Vector2(randf_range(margin, world_size.x - margin), margin)
+			1:
+				position = Vector2(world_size.x - margin, randf_range(margin, world_size.y - margin))
+			2:
+				position = Vector2(randf_range(margin, world_size.x - margin), world_size.y - margin)
+			3:
+				position = Vector2(margin, randf_range(margin, world_size.y - margin))
+		var grid_x = int((position.x - grid_size / 2) / grid_size)
+		var grid_y = int((position.y - grid_size / 2) / grid_size)
+		if not is_blocked_tile(grid_x, grid_y):
+			return position
+	# fallback
+	return Vector2(world_center.x, world_center.y)
 
 func get_valid_resource_position() -> Vector2:
 	var max_attempts = 10
 	var position = Vector2.ZERO
 	var margin = 100  # Distance from world edges
-	
 	for i in range(max_attempts):
-		# Generate random position within world bounds (with margin)
-		position = Vector2(
-			randf_range(margin, world_size.x - margin),
-			randf_range(margin, world_size.y - margin)
-		)
-		
-		# Check distance from player
-		var valid_position = true
-		if is_instance_valid($Player):
-			if position.distance_to($Player.position) < min_spawn_distance:
-				valid_position = false
-		
-		# Check distance from other resource nodes
-		for node in get_tree().get_nodes_in_group("resource_nodes"):
-			if is_instance_valid(node):
-				if position.distance_to(node.position) < min_spawn_distance:
-					valid_position = false
-		
-		if valid_position:
+		position = Vector2(randf_range(margin, world_size.x - margin), randf_range(margin, world_size.y - margin))
+		var grid_x = int((position.x - grid_size / 2) / grid_size)
+		var grid_y = int((position.y - grid_size / 2) / grid_size)
+		if not is_blocked_tile(grid_x, grid_y):
 			return position
-	
-	# If no valid position found, try a random position in the world
-	return Vector2(
-		randf_range(margin, world_size.x - margin),
-		randf_range(margin, world_size.y - margin)
-	)
+	# fallback
+	return Vector2(world_center.x, world_center.y)
 
 func spawn_enemy():
 	var new_enemy = enemy_scene.instantiate()
@@ -473,6 +456,16 @@ func toggle_build_menu():
 		preview_tower.visible = false
 
 func place_tower_at_position(tower_type: int, position: Vector2) -> void:
+	var grid_x = int((position.x - grid_size / 2) / grid_size)
+	var grid_y = int((position.y - grid_size / 2) / grid_size)
+	if is_blocked_tile(grid_x, grid_y):
+		# Show floating text for blocked tile
+		var floating_text = floating_text_scene.instantiate()
+		add_child(floating_text)
+		floating_text.position = position + Vector2(0, -30)
+		floating_text.set_text("Can't build here!")
+		floating_text.modulate = Color(1, 0, 0)
+		return
 	var cost = 10 if tower_type == Tower.TowerType.GUN else 15
 	
 	if resources >= cost:
@@ -574,11 +567,14 @@ func update_preview_tower() -> void:
 		preview_tower.position = grid_pos - (preview_tower.size / 2)
 		preview_tower.visible = true
 		
+		var grid_x = int((preview_tower.position.x - grid_size / 2) / grid_size)
+		var grid_y = int((preview_tower.position.y - grid_size / 2) / grid_size)
+		var isblocked = is_blocked_tile(grid_x, grid_y)		
 		# Update color based on tower type
-		if selected_tower_type == Tower.TowerType.GUN:
-			preview_tower.color = Color(0.5, 0, 0, 0.3)  # Semi-transparent red
+		if isblocked:
+			preview_tower.color = Color(1, 0, 0, 0.8)
 		else:
-			preview_tower.color = Color(1, 1, 0, 0.3)  # Semi-transparent yellow
+			preview_tower.color = Color(0, 1, 0, 0.8)
 	else:
 		preview_tower.visible = false
 
@@ -803,6 +799,10 @@ func create_chunk(chunk_x: int, chunk_y: int) -> void:
 				tile_index = get_water_tile(world_x, world_y)
 			else:
 				tile_index = get_plain_tile(world_x, world_y)
+			
+			# Save tile type to our tracking system
+			tile_data[tile_key(world_x, world_y)] = tile_type
+			
 			var tile_pos = Vector2(x * tile_size, y * tile_size)
 			var sprite = Sprite2D.new()
 			sprite.texture = tilemap_texture
@@ -812,6 +812,19 @@ func create_chunk(chunk_x: int, chunk_y: int) -> void:
 			sprite.z_index = 0
 			chunk.add_child(sprite)
 	loaded_chunks[str(chunk_x) + "," + str(chunk_y)] = chunk
+
+func tile_key(x: int, y: int) -> String:
+	return str(x) + "," + str(y)
+
+func is_blocked_tile(x: int, y: int) -> bool:
+	var key = tile_key(x, y)
+	if tile_data.has(key):
+		var tile_type = tile_data[key]
+		return tile_type == TILE_WATER or tile_type == TILE_FOREST
+	else:
+		# Fallback to noise if chunk hasn't been generated
+		var tile_type = get_biome_tile(x, y)
+		return tile_type == TILE_WATER or tile_type == TILE_FOREST
 
 # --- Map Generation Ruleset ---
 const TILE_PLAIN = 0
@@ -832,6 +845,7 @@ func get_biome_tile(x: int, y: int) -> int:
 	# Road overlay
 	if is_road(x, y):
 		return TILE_ROAD
+		
 	return TILE_PLAIN
 
 # --- Road Auto-Tiling ---
@@ -907,3 +921,34 @@ func get_tile_region(tile_index: int) -> Rect2:
 	)
 	
 	return region
+
+# Returns a path (list of Vector2 grid positions) from start to end, avoiding blockable tiles
+func get_astar_path(start: Vector2, end: Vector2) -> Array:
+	var astar = AStar2D.new()
+	var nodes = {}
+	var start_x = int(start.x)
+	var start_y = int(start.y)
+	var end_x = int(end.x)
+	var end_y = int(end.y)
+	# Build a local grid around the start position
+	for dx in range(-astar_search_radius, astar_search_radius + 1):
+		for dy in range(-astar_search_radius, astar_search_radius + 1):
+			var x = start_x + dx
+			var y = start_y + dy
+			var id = x * 100000 + y  # Unique id for each grid cell
+			var pos = Vector2(x, y)
+			if not is_blocked_tile(x, y):
+				astar.add_point(id, pos)
+				nodes[Vector2(x, y)] = id
+				
+	# Connect neighbors
+	for pos in nodes.keys():
+		var id = nodes[pos]
+		for offset in [Vector2(1,0), Vector2(-1,0), Vector2(0,1), Vector2(0,-1)]:
+			var neighbor = pos + offset
+			if nodes.has(neighbor):
+				astar.connect_points(id, nodes[neighbor])
+	# Find path
+	if nodes.has(start) and nodes.has(end):
+		return astar.get_point_path(nodes[start], nodes[end])
+	return []
