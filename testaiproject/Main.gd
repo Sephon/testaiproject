@@ -652,12 +652,12 @@ func restart_game() -> void:
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			# Zoom in
 			camera_zoom = camera_zoom * (1.0 - zoom_speed)
 			camera_zoom = camera_zoom.clamp(min_zoom, max_zoom)
 			camera.zoom = camera_zoom
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			# Zoom out
 			camera_zoom = camera_zoom * (1.0 + zoom_speed)
 			camera_zoom = camera_zoom.clamp(min_zoom, max_zoom)
